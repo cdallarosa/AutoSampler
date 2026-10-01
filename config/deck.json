@@ -1,0 +1,10 @@
+{
+  "slots": {
+    "rack1": {"origin_mm": [20.0, 20.0], "labware": "vial_rack_4x6"},
+    "plate1": {"origin_mm": [160.0, 20.0], "labware": "plate_96_well"}
+  },
+  "positions": {
+    "park": [0.0, 0.0, 0.0],
+    "wash": [280.0, 250.0, 60.0]
+  }
+}

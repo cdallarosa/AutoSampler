@@ -1,0 +1,12 @@
+{
+  "_comment": "4 x 6 rack of 2 mL vials. All dimensions are placeholders: measure your rack.",
+  "name": "Vial rack 4x6 (2 mL)",
+  "rows": 4,
+  "cols": 6,
+  "pitch_x_mm": 20.0,
+  "pitch_y_mm": 20.0,
+  "a1_offset_mm": [12.0, 12.0],
+  "z_top_mm": 90.0,
+  "z_sample_mm": 125.0,
+  "well_diameter_mm": 12.0
+}

@@ -1,0 +1,43 @@
+{
+  "_comment": "Units are mm, mm/s and Nm. Coordinates are corner-origin: each axis is 0 at its homed end. Z=0 is the top and +Z moves the needle down. turns_per_mm and the serials are PLACEHOLDERS: set them for your machine before running with --hardware.",
+  "simulate": true,
+  "axes": {
+    "x": {
+      "serial": "365733543432", "axis_number": 0, "turns_per_mm": 0.1,
+      "min_mm": 0, "max_mm": 300, "speed_mm_s": 50, "accel_mm_s2": 100,
+      "homing_speed_mm_s": 10, "homing_direction": -1, "homing_backoff_mm": 2
+    },
+    "y": {
+      "serial": "365733543432", "axis_number": 1, "turns_per_mm": 0.1,
+      "min_mm": 0, "max_mm": 300, "speed_mm_s": 50, "accel_mm_s2": 100,
+      "homing_speed_mm_s": 10, "homing_direction": -1, "homing_backoff_mm": 2
+    },
+    "z": {
+      "serial": "366133543432", "axis_number": 0, "turns_per_mm": 0.1,
+      "min_mm": 0, "max_mm": 150, "speed_mm_s": 30, "accel_mm_s2": 100,
+      "homing_speed_mm_s": 10, "homing_direction": 1, "homing_backoff_mm": 2
+    }
+  },
+  "motor": {
+    "motor_type": "PMSM_CURRENT_CONTROL",
+    "pole_pairs": 4,
+    "torque_constant": 0.095,
+    "encoder_cpr": 3070,
+    "current_soft_max": 30.0,
+    "current_hard_max": 49.0,
+    "calibration_current": 10.0,
+    "torque_soft_limit": 2.0,
+    "torque_hard_limit": 4.0,
+    "homing_torque_threshold": 1.5
+  },
+  "z_safe_mm": 0,
+  "home_order": ["z", "x", "y"],
+  "position_tolerance_mm": 0.1,
+  "move_timeout_s": 60,
+  "homing_timeout_s": 120,
+  "watchdog_timeout_s": 0.5,
+  "simulation": {
+    "travel_mm": {"x": 320, "y": 320, "z": 160},
+    "speedup": 4
+  }
+}

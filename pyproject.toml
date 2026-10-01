@@ -1,0 +1,21 @@
+[project]
+name = "akta-autosampler"
+version = "0.1.0"
+description = "Gantry-only XYZ autosampler for ÄKTA, driven by ODrive axes"
+requires-python = ">=3.12"
+dependencies = ["nicegui>=3.0"]
+
+[project.optional-dependencies]
+hardware = ["odrive>=0.6.8"]
+native = ["pywebview"]
+dev = ["pytest>=8"]
+
+[project.scripts]
+akta-autosampler = "akta_autosampler.__main__:main"
+
+[tool.setuptools]
+packages = ["akta_autosampler", "akta_autosampler.hardware", "akta_autosampler.ui"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
