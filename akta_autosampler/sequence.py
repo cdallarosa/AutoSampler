@@ -6,8 +6,9 @@ A sequence file (config/sequences/*.json) looks like::
     {"name": "...", "steps": [{"type": "home"}, {"type": "move_to_well", ...}, ...]}
 
 Step types: home, move_to_well, lower, raise, dwell, pause, move_to_position,
-and the "samples" macro, which expands to the per-vial
-move/lower/wait/raise(/wash) steps.
+wait_for_akta, signal_akta, and the "samples" macro, which expands to the
+per-vial move/lower/wait/raise(/wash) steps, optionally with the ÄKTA
+handshake from config/akta.json.
 """
 
 import json
@@ -19,6 +20,7 @@ from pathlib import Path
 from threading import Event, Thread
 from typing import Any, Callable, ClassVar, Dict, List, Optional, Tuple, Type, Union
 
+from .akta import AktaLink, describe_condition
 from .deck import Deck
 from .gantry import Gantry
 
@@ -38,7 +40,13 @@ class StepContext:
     gantry: Gantry
     deck: Deck
     runner: "SequenceRunner"
+    akta: Optional[AktaLink] = None
     current_well: Optional[Tuple[str, str]] = None  # (slot, well) the needle is over
+
+    def require_akta(self) -> AktaLink:
+        if self.akta is None:
+            raise StepError("This step needs the ÄKTA link (config/akta.json mode is 'off')")
+        return self.akta
 
 
 def _require(ok: bool, message: str):
@@ -171,13 +179,73 @@ class MoveToPositionStep(Step):
         ctx.current_well = None
 
 
-def _expand_samples(spec: Dict[str, Any], deck: Optional[Deck]) -> List[Step]:
+_CONDITION_KEYS = ("equals", "not_equals", "in", "contains")
+
+
+@_register
+@dataclass
+class WaitForAktaStep(Step):
+    """Wait until an ÄKTA signal matches, e.g. {"signal": "sample_request", "equals": 0}."""
+    signal: str
+    condition: Dict[str, Any]
+    timeout_s: Optional[float] = None
+    message: str = ""
+    type: ClassVar[str] = "wait_for_akta"
+
+    @classmethod
+    def from_item(cls, item: Dict[str, Any]) -> "WaitForAktaStep":
+        cond = {k: item.pop(k) for k in _CONDITION_KEYS if k in item}
+        if len(cond) != 1:
+            raise ValueError(f"wait_for_akta needs exactly one of {_CONDITION_KEYS}")
+        return cls(condition=cond, **item)
+
+    def describe(self):
+        return self.message or f"Wait for ÄKTA {self.signal} {describe_condition(self.condition)}"
+
+    def run(self, ctx):
+        akta = ctx.require_akta()
+        ctx.runner.message = self.describe()
+        ok = akta.wait_for(self.signal, self.condition, self.timeout_s, cancel=ctx.runner.abort_event)
+        ctx.runner.message = ""
+        if ctx.runner.abort_event.is_set():
+            raise Aborted()
+        _require(ok, f"Timed out after {self.timeout_s} s: {self.describe()}")
+
+
+@_register
+@dataclass
+class SignalAktaStep(Step):
+    """Set an ÄKTA output signal, optionally as a pulse back to its idle value."""
+    signal: str
+    value: Any
+    pulse_s: Optional[float] = None
+    type: ClassVar[str] = "signal_akta"
+
+    def describe(self):
+        pulse = f" (pulse {self.pulse_s:g} s)" if self.pulse_s else ""
+        return f"Set ÄKTA {self.signal} = {self.value}{pulse}"
+
+    def run(self, ctx):
+        akta = ctx.require_akta()
+        if self.pulse_s:
+            akta.pulse(self.signal, self.value, self.pulse_s, cancel=ctx.runner.abort_event)
+        else:
+            akta.write(self.signal, self.value)
+
+
+def _expand_samples(spec: Dict[str, Any], deck: Optional[Deck],
+                    handshake: Optional[Dict[str, Any]] = None) -> List[Step]:
     """
     "samples" macro::
 
         {"type": "samples", "slot": "rack1", "wells": "A1-A4" | ["A1", ...],
          "depth": "sample", "dwell_s": 30, "pause_in_sample": false,
+         "akta_handshake": false,
          "wash": {"position": "wash", "dwell_s": 5}, "end_position": "park"}
+
+    With ``akta_handshake`` each vial runs: move over vial -> wait for the
+    ÄKTA request -> lower -> needle_ready active -> wait for ÄKTA done ->
+    needle_ready idle -> raise.
     """
     slot = spec["slot"]
     wells = spec["wells"]
@@ -185,14 +253,32 @@ def _expand_samples(spec: Dict[str, Any], deck: Optional[Deck]) -> List[Step]:
         if deck is None:
             raise ValueError("Well ranges need a deck to expand")
         wells = deck.slot(slot).labware.expand_wells(wells)
+    use_hs = spec.get("akta_handshake", False)
+    if use_hs and not handshake:
+        raise ValueError("akta_handshake needs a 'handshake' section in config/akta.json")
+    hs = handshake or {}
+    timeout = hs.get("timeout_s")
+
+    def wait(key: str, msg: str) -> WaitForAktaStep:
+        cond = {k: v for k, v in hs[key].items() if k in _CONDITION_KEYS}
+        return WaitForAktaStep(hs[key]["signal"], cond, timeout, msg)
+
     steps: List[Step] = []
     for well in wells:
-        steps += [MoveToWellStep(slot, well), LowerStep(spec.get("depth", "sample"))]
+        steps.append(MoveToWellStep(slot, well))
+        if use_hs:
+            steps.append(wait("request", f"Wait for ÄKTA to request sample {slot}:{well}"))
+        steps.append(LowerStep(spec.get("depth", "sample")))
+        if spec.get("dwell_s"):
+            steps.append(DwellStep(spec["dwell_s"]))
+        if use_hs:
+            ready = hs["ready"]
+            steps += [SignalAktaStep(ready["signal"], ready["active"]),
+                      wait("done", f"Wait for ÄKTA to finish loading {slot}:{well}"),
+                      SignalAktaStep(ready["signal"], ready["idle"])]
         if spec.get("pause_in_sample"):
             steps.append(PauseStep(f"Needle in {slot}:{well}. Run the ÄKTA sample "
                                    f"application, then Resume."))
-        if spec.get("dwell_s"):
-            steps.append(DwellStep(spec["dwell_s"]))
         steps.append(RaiseStep())
         wash = spec.get("wash")
         if wash:
@@ -205,16 +291,18 @@ def _expand_samples(spec: Dict[str, Any], deck: Optional[Deck]) -> List[Step]:
     return steps
 
 
-def parse_steps(items: List[Dict[str, Any]], deck: Optional[Deck] = None) -> List[Step]:
+def parse_steps(items: List[Dict[str, Any]], deck: Optional[Deck] = None,
+                handshake: Optional[Dict[str, Any]] = None) -> List[Step]:
     steps: List[Step] = []
     for i, item in enumerate(items):
         item = {k: v for k, v in item.items() if not k.startswith("_")}
         kind = item.pop("type", None)
         try:
             if kind == "samples":
-                steps += _expand_samples(item, deck)
+                steps += _expand_samples(item, deck, handshake)
             elif kind in _STEP_TYPES:
-                steps.append(_STEP_TYPES[kind](**item))
+                cls = _STEP_TYPES[kind]
+                steps.append(cls.from_item(item) if hasattr(cls, "from_item") else cls(**item))
             else:
                 raise ValueError(f"unknown type '{kind}'. Types: {sorted(_STEP_TYPES) + ['samples']}")
         except (TypeError, KeyError, ValueError) as e:
@@ -229,14 +317,16 @@ class Sequence:
     steps: List[Step] = field(default_factory=list)  # expanded
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any], deck: Optional[Deck] = None) -> "Sequence":
+    def from_dict(cls, data: Dict[str, Any], deck: Optional[Deck] = None,
+                  handshake: Optional[Dict[str, Any]] = None) -> "Sequence":
         items = data.get("steps", [])
-        return cls(data.get("name", "Unnamed"), items, parse_steps(items, deck))
+        return cls(data.get("name", "Unnamed"), items, parse_steps(items, deck, handshake))
 
     @classmethod
-    def load(cls, path: Path, deck: Optional[Deck] = None) -> "Sequence":
+    def load(cls, path: Path, deck: Optional[Deck] = None,
+             handshake: Optional[Dict[str, Any]] = None) -> "Sequence":
         with open(path, encoding="utf-8") as f:
-            return cls.from_dict(json.load(f), deck)
+            return cls.from_dict(json.load(f), deck, handshake)
 
     def to_dict(self) -> Dict[str, Any]:
         return {"name": self.name, "steps": self.items}
@@ -263,9 +353,10 @@ class RunnerState(Enum):
 class SequenceRunner:
     """Runs a Sequence in a background thread with pause/resume/abort."""
 
-    def __init__(self, gantry: Gantry, deck: Deck):
+    def __init__(self, gantry: Gantry, deck: Deck, akta: Optional[AktaLink] = None):
         self.gantry = gantry
         self.deck = deck
+        self.akta = akta
         self.state = RunnerState.IDLE
         self.sequence: Optional[Sequence] = None
         self.index = -1
@@ -279,6 +370,10 @@ class SequenceRunner:
     @property
     def is_active(self) -> bool:
         return self.state in (RunnerState.RUNNING, RunnerState.PAUSED)
+
+    @property
+    def abort_event(self) -> Event:
+        return self._abort
 
     @property
     def steps(self) -> List[Step]:
@@ -348,7 +443,7 @@ class SequenceRunner:
                 pass
 
     def _run(self):
-        ctx = StepContext(self.gantry, self.deck, self)
+        ctx = StepContext(self.gantry, self.deck, self, self.akta)
         name = self.sequence.name
         logger.info(f"Sequence '{name}' started ({len(self.steps)} steps)")
         started = time.time()
@@ -368,13 +463,20 @@ class SequenceRunner:
             if isinstance(e, Aborted) or self._abort.is_set():
                 self.message = "Aborted"
                 logger.warning(f"Sequence '{name}' aborted at step {self.index + 1}")
+                self._reset_akta()
                 self._safe_raise()
                 self._set_state(RunnerState.ABORTED)
             else:
                 self.message = str(e)
                 logger.error(f"Sequence '{name}' failed at step {self.index + 1}: {e}")
                 self.gantry.stop()
+                self._reset_akta()
                 self._set_state(RunnerState.FAILED)
+
+    def _reset_akta(self):
+        """Return ÄKTA outputs (e.g. needle_ready) to idle so the ÄKTA doesn't load air."""
+        if self.akta is not None:
+            self.akta.reset_outputs()
 
     def _safe_raise(self):
         """After an abort, lift the needle out of the vial if the gantry is healthy."""

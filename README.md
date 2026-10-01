@@ -12,9 +12,14 @@ akta_autosampler/
   gantry.py                XYZ in mm: move_to, safe_move_to, jog, stop, home_all
   deck.py                  labware grids and deck slots; well name -> XYZ
   sequence.py              sequence steps and the threaded runner (pause/resume/abort)
+  akta/link.py             ÄKTA link: named signals, polling, wait/write, handshake
+  akta/backends.py         UNICORN OPC UA client and LabJack (I/O-box E9) backends
+  akta/sim.py              simulated ÄKTA method for testing handshakes
+  tools/opcua_browse.py    lists UNICORN OPC UA node ids
   ui/app.py                NiceGUI operator UI
 config/
   gantry.json              axes, serials, turns_per_mm, limits, speeds, motor params
+  akta.json                ÄKTA link: mode, OPC UA endpoint, LabJack, signals, handshake
   deck.json                slots (origin + labware) and named positions (park, wash)
   labware/*.json           rack/plate definitions
   sequences/*.json         saved sequences
@@ -97,9 +102,65 @@ Step types:
 | `dwell` | `seconds` |
 | `pause` | `message` |
 | `move_to_position` | `name` |
-| `samples` | macro: expands to move, lower, (pause), dwell, raise, (wash) for each well |
+| `wait_for_akta` | `signal` plus one of `equals`, `not_equals`, `in`, `contains`; optional `timeout_s`, `message` |
+| `signal_akta` | `signal`, `value`; optional `pulse_s` |
+| `samples` | macro: expands to move, (wait for ÄKTA), lower, dwell, (signal ÄKTA), raise, (wash) for each well |
 
-**ÄKTA sync:** for now, use `pause_in_sample: true`. The runner waits with the needle in the vial until the operator clicks Resume. `PauseStep` is the hook for a future ÄKTA digital-I/O trigger.
+**ÄKTA sync:** use `akta_handshake: true` (see [ÄKTA integration](#äkta-integration)). For manual sync, use `pause_in_sample: true`: the runner waits with the needle in the vial until the operator clicks Resume.
+
+## ÄKTA integration
+
+The ÄKTA link is set up in `config/akta.json`, where `"mode"` is `sim`, `hardware` or `off`. Override it with `--akta sim|hardware|off`.
+
+The link exposes **named signals**. Each signal is read from, or written to, one of two sources:
+
+- **`opcua`**: the UNICORN OPC UA server, which needs the separate licence. Good for status: run state, phase and block, monitor values, and the ÄKTA's own digital I/O values.
+- **`labjack`**: a LabJack T4/T7 (via LJM) or U3 wired to the **I/O-box E9**. This is a hardwired handshake and does not depend on OPC UA.
+
+A background thread polls every input signal. The **ÄKTA** tab shows them live, with manual 0/1 buttons for the outputs, and the header shows the run state and phase.
+
+Values use **UNICORN logic** for the I/O-box: `1` = open circuit and `0` = closed circuit to signal ground.
+
+### Handshake (per vial)
+
+| Step | Autosampler | ÄKTA method |
+| --- | --- | --- |
+| 1 | Moves over the vial and waits for `sample_request = 0` | `Digital out 1 = 0` ("ready for sample"), then hold or watch |
+| 2 | Lowers the needle and sets `needle_ready = 0` | Watch `Digital in 1 = 0`, then continue with sample application |
+| 3 | Waits for `sample_request = 1` | `Digital out 1 = 1` when sample application ends |
+| 4 | Sets `needle_ready = 1`, raises, washes, moves to the next vial | Wash / elution / re-equilibration, then the next sample |
+
+If a sequence is aborted or fails, every output returns to its `idle` value, so the ÄKTA never sees "needle ready" while the needle is out of the vial.
+
+### Wiring: I/O-box E9 to LabJack T4
+
+The E9 D-sub has digital in 1–4 on pins 1–4, **signal ground on pin 5**, and digital out 1–4 on pins 6–9 (ÄKTA pure manual §3.5.3).
+
+| I/O-box pin | ÄKTA signal | LabJack T4 | Signal in akta.json |
+| --- | --- | --- | --- |
+| 6 | Digital out 1 | FIO4 (input, internal pull-up) | `sample_request` |
+| 1 | Digital in 1 | FIO5 (open-drain output) | `needle_ready` |
+| 5 | Signal ground | GND | none |
+
+- The ÄKTA outputs are contacts closed to ground, so the LabJack pull-up reads open as 1 and closed as 0.
+- To drive the ÄKTA inputs, the LabJack pulls the line low for 0 and releases it for 1 (`"drive": "open_drain"`). This avoids relying on the 3.3 V LabJack meeting the ÄKTA's 3.5 V logic-high level.
+- On the T4, use FIO4–FIO7 or EIO lines. FIO0–3 are analog by default.
+- Install the **LabJack LJM driver** from labjack.com before using `labjack-ljm`. For a U3, set `"device": "U3"` and `pip install LabJackPython`.
+
+### Finding UNICORN OPC UA node ids
+
+The node ids in `akta.json` are placeholders. List the real ones from the UNICORN instrument server:
+
+```bash
+.venv\Scripts\python -m akta_autosampler.tools.opcua_browse opc.tcp://UNICORN-PC:4840 --find "state|phase|block|digital" --out opcua_nodes.txt
+```
+
+Each line shows the path, node id, data type, current value and access (`R`/`RW`). Copy the node ids into `signals`.
+
+- **Credentials:** if the server needs them, set `username` and put the password in the environment variable named by `password_env`. Never put it in the file.
+- **Signed/encrypted endpoints:** set `security_string`.
+- **Any node can be a signal.** For example, map the ÄKTA's `Digital out 1` via OPC UA instead of wiring it.
+- **Writes over OPC UA:** if UNICORN marks a node as writable (`RW`), it can be an output (`"output": true`, plus `"type"` such as `"Int32"`). Otherwise, keep outputs on the LabJack.
 
 ## First power-on with hardware
 

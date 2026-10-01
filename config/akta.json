@@ -1,0 +1,51 @@
+{
+  "_comment": "ÄKTA link. 'mode' is sim | hardware | off. Values use UNICORN logic for the I/O-box E9: 1 = open circuit, 0 = closed. OPC UA node ids are PLACEHOLDERS: discover them with  python -m akta_autosampler.tools.opcua_browse <endpoint>",
+  "mode": "sim",
+  "poll_s": 0.2,
+  "reconnect_s": 5,
+
+  "opcua": {
+    "endpoint": "opc.tcp://UNICORN-PC:4840",
+    "username": null,
+    "password_env": "AKTA_OPCUA_PASSWORD",
+    "security_string": null,
+    "timeout_s": 4
+  },
+
+  "labjack": {
+    "device": "T4",
+    "connection": "USB",
+    "identifier": "ANY"
+  },
+
+  "signals": {
+    "run_state": {
+      "source": "opcua", "node": "ns=2;s=PLACEHOLDER.RunState",
+      "description": "UNICORN run state (Running / Hold / Pause / End)"
+    },
+    "phase": {
+      "source": "opcua", "node": "ns=2;s=PLACEHOLDER.CurrentPhase",
+      "description": "Current method phase / block"
+    },
+    "sample_request": {
+      "source": "labjack", "line": "FIO4",
+      "description": "ÄKTA Digital out 1 (D-sub pin 6, pin 5 = ground). 0 = ÄKTA ready for sample"
+    },
+    "needle_ready": {
+      "source": "labjack", "line": "FIO5", "output": true, "idle": 1, "drive": "open_drain",
+      "description": "ÄKTA Digital in 1 (D-sub pin 1). 0 = needle is in the vial"
+    }
+  },
+
+  "handshake": {
+    "request": {"signal": "sample_request", "equals": 0},
+    "ready":   {"signal": "needle_ready", "active": 0, "idle": 1},
+    "done":    {"signal": "sample_request", "equals": 1},
+    "timeout_s": 7200
+  },
+
+  "simulation": {
+    "equilibrate_s": 2,
+    "sample_time_s": 3
+  }
+}

@@ -18,6 +18,7 @@ from typing import Callable, Deque, Dict, List, Optional, Tuple
 
 from nicegui import app, run, ui
 
+from ..akta import AktaLink
 from ..config import CONFIG_DIR
 from ..deck import Deck
 from ..gantry import Gantry
@@ -57,6 +58,7 @@ class Machine:
     deck: Deck
     runner: SequenceRunner
     log: LogBuffer
+    akta: Optional[AktaLink] = None
     busy: bool = False
     selected: Optional[Tuple[str, str]] = None  # (slot, well)
 
@@ -71,7 +73,8 @@ MACHINE: Optional[Machine] = None
 @ui.page("/")
 def index():
     m = MACHINE
-    g, deck, runner = m.gantry, m.deck, m.runner
+    g, deck, runner, akta = m.gantry, m.deck, m.runner, m.akta
+    handshake = akta.handshake if akta else None
     lockable: List[ui.element] = []  # disabled while busy / sequence running
 
     async def act(fn: Callable, *args, fail: str = "Command failed", **kwargs):
@@ -105,12 +108,13 @@ def index():
     # ------------------------------------------------------------------
     # Header
     # ------------------------------------------------------------------
-    with ui.header().classes("items-center gap-4 px-4 py-2 bg-slate-800"):
+    with ui.header().classes("items-center gap-4 px-4 py-2 bg-slate-800 flex-nowrap"):
         ui.label("ÄKTA Autosampler").classes("text-lg font-bold")
         mode = ui.badge("SIM" if g.simulated else "HARDWARE",
                         color="orange" if g.simulated else "green")
         state_lbl = ui.label().classes("text-sm uppercase")
         homed_badge = ui.badge()
+        akta_badge = ui.badge("ÄKTA off", color="grey").classes("max-w-[16rem] truncate block")
         ui.space()
         pos_lbls: Dict[str, ui.label] = {}
         with ui.row().classes("gap-4 font-mono text-lg"):
@@ -135,6 +139,7 @@ def index():
         t_control = ui.tab("Control", icon="open_with")
         t_deck = ui.tab("Deck", icon="grid_on")
         t_seq = ui.tab("Sequence", icon="playlist_play")
+        t_akta = ui.tab("ÄKTA", icon="settings_input_component")
 
     with ui.tab_panels(tabs, value=t_control).classes("w-full"):
 
@@ -314,7 +319,10 @@ def index():
                         with ui.row():
                             b_depth = ui.select(["sample", "top"], value="sample", label="Depth").classes("w-28")
                             b_dwell = ui.number("Dwell s", value=10, min=0).classes("w-24")
-                        b_pause = ui.checkbox("Pause in each vial for ÄKTA (operator resumes)")
+                        b_handshake = ui.checkbox("ÄKTA handshake (wait for ÄKTA request / signal ready)",
+                                                  value=bool(handshake))
+                        b_handshake.set_enabled(bool(handshake))
+                        b_pause = ui.checkbox("Pause in each vial for operator (manual ÄKTA sync)")
                         with ui.row():
                             b_wash = ui.select(["(none)"] + pos_names, value="(none)", label="Wash").classes("w-32")
                             b_wash_dwell = ui.number("Wash s", value=3, min=0).classes("w-24")
@@ -342,6 +350,56 @@ def index():
 
             ui.label("Log").classes("font-bold mt-4")
             log_view = ui.log(max_lines=500).classes("w-full h-64")
+
+        # --------------------------------------------------------------
+        # ÄKTA
+        # --------------------------------------------------------------
+        with ui.tab_panel(t_akta):
+            akta_backends = ui.row().classes("gap-2 items-center")
+            akta_table = ui.table(
+                columns=[{"name": c, "label": c.capitalize(), "field": c, "align": "left"}
+                         for c in ("signal", "source", "value", "age", "io", "description")],
+                rows=[], row_key="signal").classes("w-full").props("dense flat")
+
+            if akta is None:
+                ui.label("ÄKTA link is off. Set \"mode\" in config/akta.json to \"sim\" or \"hardware\", "
+                         "or start with --akta sim|hardware.").classes("text-gray-500")
+            else:
+                with ui.row().classes("gap-2"):
+                    ui.button("Connect", icon="link",
+                              on_click=lambda: run.io_bound(akta.connect)).props("outline")
+                    ui.button("Reset outputs to idle", icon="restart_alt",
+                              on_click=lambda: run.io_bound(akta.reset_outputs)).props("flat")
+
+                outputs = [n for n, s in akta.signals.items() if s.get("output")]
+                if outputs:
+                    with ui.card():
+                        ui.label("Outputs to ÄKTA (manual)").classes("font-bold")
+                        ui.label("Values use UNICORN logic: 1 = open circuit, 0 = closed.").classes(
+                            "text-xs text-gray-500")
+
+                        async def set_output(name, value):
+                            try:
+                                await run.io_bound(akta.write, name, value)
+                            except Exception as e:
+                                ui.notify(f"{name}: {e}", type="negative")
+
+                        for name in outputs:
+                            with ui.row().classes("items-center gap-2"):
+                                ui.label(name).classes("font-mono w-40")
+                                ui.button("0", on_click=lambda n=name: set_output(n, 0)).props("dense outline")
+                                ui.button("1", on_click=lambda n=name: set_output(n, 1)).props("dense outline")
+
+                if handshake:
+                    hs = handshake
+                    ui.markdown(
+                        "**Handshake per vial** (samples step with *ÄKTA handshake*):\n\n"
+                        f"1. Move over the vial, wait for `{hs['request']['signal']}` = {hs['request']['equals']}\n"
+                        f"2. Lower, set `{hs['ready']['signal']}` = {hs['ready']['active']}\n"
+                        f"3. Wait for `{hs['done']['signal']}` = {hs['done']['equals']}, "
+                        f"set `{hs['ready']['signal']}` = {hs['ready']['idle']}, raise\n\n"
+                        "On abort or failure every output returns to its idle value."
+                    ).classes("text-sm")
 
     # ------------------------------------------------------------------
     # Deck helpers
@@ -413,7 +471,7 @@ def index():
             ui.notify("Choose a file", type="warning")
             return
         try:
-            show_sequence(Sequence.load(SEQUENCE_DIR / name, deck))
+            show_sequence(Sequence.load(SEQUENCE_DIR / name, deck, handshake))
             ui.notify(f"Loaded {name}")
         except Exception as e:
             ui.notify(f"Load failed: {e}", type="negative")
@@ -422,13 +480,13 @@ def index():
         try:
             spec = {"type": "samples", "slot": b_slot.value, "wells": b_wells.value or "",
                     "depth": b_depth.value, "dwell_s": b_dwell.value or 0,
-                    "pause_in_sample": b_pause.value}
+                    "pause_in_sample": b_pause.value, "akta_handshake": b_handshake.value}
             if b_wash.value != "(none)":
                 spec["wash"] = {"position": b_wash.value, "dwell_s": b_wash_dwell.value or 0}
             if b_end.value != "(none)":
                 spec["end_position"] = b_end.value
             items = ([{"type": "home"}] if b_home.value else []) + [spec]
-            seq = Sequence.from_dict({"name": b_name.value or "Sample run", "steps": items}, deck)
+            seq = Sequence.from_dict({"name": b_name.value or "Sample run", "steps": items}, deck, handshake)
             if not any(s.type == "move_to_well" for s in seq.steps):
                 raise ValueError("No wells - enter e.g. A1-A6")
             show_sequence(seq)
@@ -519,6 +577,37 @@ def index():
             log_view.push(line)
             last["log"] = seq_no
 
+        # ÄKTA
+        if akta is not None:
+            ast = akta.status()
+            values = {s["name"]: s["value"] for s in ast["signals"]}
+            if akta.connected:
+                parts = [str(values[k]) for k in ("run_state", "phase") if values.get(k) is not None]
+                akta_badge.set_text("ÄKTA" + (" SIM" if ast["simulated"] else "") +
+                                    (": " + " · ".join(parts) if parts else ": connected"))
+                akta_badge.props("color=teal")
+                akta_badge.props(f'title="{akta_badge.text}"')
+            else:
+                akta_badge.set_text("ÄKTA offline")
+                akta_badge.props("color=red")
+            akta_table.rows = [
+                {"signal": s["name"], "source": s["source"],
+                 "value": "—" if s["value"] is None else str(s["value"]),
+                 "age": "" if s["age_s"] is None else f"{s['age_s']:.1f} s",
+                 "io": "out" if s["output"] else "in", "description": s["description"]}
+                for s in ast["signals"]
+            ]
+            key = tuple((n, b["connected"], b["error"]) for n, b in ast["backends"].items())
+            if key != last.get("akta"):
+                last["akta"] = key
+                akta_backends.clear()
+                with akta_backends:
+                    for n, b in ast["backends"].items():
+                        ui.badge(f"{n}: {'connected' if b['connected'] else 'offline'}",
+                                 color="green" if b["connected"] else "red")
+                        if b["error"] and not b["connected"]:
+                            ui.label(b["error"]).classes("text-xs text-red-500")
+
     ui.timer(0.1, tick)
 
 
@@ -536,15 +625,18 @@ _STATE_COLORS = {
 # ENTRY
 # ============================================================================
 
-def main(gantry: Gantry, deck: Deck, *, host: str = "127.0.0.1", port: int = 8080,
-         native: bool = False, show: bool = True, auto_connect: bool = False):
+def main(gantry: Gantry, deck: Deck, akta: Optional[AktaLink] = None, *, host: str = "127.0.0.1",
+         port: int = 8080, native: bool = False, show: bool = True, auto_connect: bool = False):
     global MACHINE
     log = LogBuffer()
     logging.getLogger().addHandler(log)
-    MACHINE = Machine(gantry, deck, SequenceRunner(gantry, deck), log)
+    MACHINE = Machine(gantry, deck, SequenceRunner(gantry, deck, akta), log, akta)
 
     if auto_connect:
         app.on_startup(lambda: run.io_bound(gantry.connect))
+    if akta is not None:
+        app.on_startup(lambda: run.io_bound(akta.connect))
+        app.on_shutdown(akta.disconnect)
     app.on_shutdown(lambda: gantry.disconnect() if gantry.is_connected else None)
 
     ui.run(host=host, port=port, title="ÄKTA Autosampler", native=native, show=show,

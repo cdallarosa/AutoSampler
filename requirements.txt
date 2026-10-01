@@ -1,3 +1,5 @@
 nicegui>=3.0
-odrive>=0.6.8   # only needed for --hardware (imported lazily)
+odrive>=0.6.8        # gantry hardware mode (imported lazily)
+asyncua>=1.1         # ÄKTA link: UNICORN OPC UA
+labjack-ljm>=1.23    # ÄKTA link: LabJack T4/T7 (also install the LJM driver from labjack.com)
 pytest>=8
