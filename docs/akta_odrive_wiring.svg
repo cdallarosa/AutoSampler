@@ -1,0 +1,113 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 720" width="1000" height="720" font-family="Segoe UI, Arial, sans-serif">
+  <rect width="1000" height="720" fill="#ffffff"/>
+
+  <text x="40" y="34" font-size="20" font-weight="700" fill="#1a1a1a">ÄKTA I/O-box E9  ↔  ODrive Pro (X axis) isolated I/O — handshake wiring</text>
+
+  <!-- ODrive box -->
+  <rect x="40" y="80" width="250" height="300" rx="8" fill="#eef3fb" stroke="#2b4c7e" stroke-width="2"/>
+  <text x="56" y="106" font-size="15" font-weight="700" fill="#2b4c7e">ODrive Pro — X axis board</text>
+  <text x="56" y="126" font-size="12" fill="#2b4c7e">Isolated I/O connector J12/J13</text>
+  <text x="56" y="142" font-size="11" fill="#5a6b85">(match the signal names on the board)</text>
+  <g font-size="13" fill="#1a1a1a" text-anchor="end">
+    <text x="282" y="154">ISO_VDD  (5 V in)</text>
+    <text x="282" y="214">G08 — isolated input</text>
+    <text x="282" y="274">ISO_GND</text>
+    <text x="282" y="334">G10 — isolated output</text>
+  </g>
+  <g stroke="#2b4c7e" stroke-width="2">
+    <line x1="290" y1="150" x2="320" y2="150"/>
+    <line x1="290" y1="210" x2="320" y2="210"/>
+    <line x1="290" y1="270" x2="320" y2="270"/>
+    <line x1="290" y1="330" x2="320" y2="330"/>
+  </g>
+
+  <!-- 5 V supply -->
+  <rect x="470" y="56" width="180" height="48" rx="6" fill="#fff4f4" stroke="#c62828" stroke-width="2"/>
+  <text x="560" y="76" font-size="13" font-weight="700" fill="#c62828" text-anchor="middle">5 V DC supply</text>
+  <text x="560" y="94" font-size="11" fill="#7a3b3b" text-anchor="middle">(small separate adapter)</text>
+  <text x="500" y="122" font-size="13" font-weight="700" fill="#c62828" text-anchor="middle">+</text>
+  <text x="620" y="122" font-size="13" font-weight="700" fill="#1a1a1a" text-anchor="middle">−</text>
+
+  <!-- +5 V rail: ISO_VDD -> supply +, with the pull-up tap -->
+  <polyline points="320,150 500,150 500,104" fill="none" stroke="#c62828" stroke-width="3"/>
+  <text x="352" y="143" font-size="12" font-weight="700" fill="#c62828">+5 V</text>
+
+  <!-- R1 10k pull-up: +5 V rail -> G08 -->
+  <line x1="420" y1="150" x2="420" y2="163" stroke="#c62828" stroke-width="3"/>
+  <rect x="410" y="163" width="20" height="34" fill="#ffffff" stroke="#1a1a1a" stroke-width="2"/>
+  <line x1="420" y1="197" x2="420" y2="210" stroke="#1565c0" stroke-width="3"/>
+  <text x="436" y="180" font-size="12" font-weight="700" fill="#1a1a1a">R1 10 kΩ</text>
+  <text x="436" y="195" font-size="11" fill="#444">pull-up</text>
+
+  <!-- G08 <- ÄKTA Digital out 1 (pin 6) -->
+  <line x1="320" y1="210" x2="760" y2="210" stroke="#1565c0" stroke-width="3"/>
+  <text x="520" y="227" font-size="11" fill="#1565c0" text-anchor="middle">sample_request (0 = ready)</text>
+
+  <!-- Ground: ISO_GND -> ÄKTA pin 5, and up to the supply − (hop over G08) -->
+  <line x1="320" y1="270" x2="760" y2="270" stroke="#1a1a1a" stroke-width="3"/>
+  <path d="M620,104 L620,202 A8,8 0 0 1 620,218 L620,270" fill="none" stroke="#1a1a1a" stroke-width="3"/>
+  <text x="700" y="262" font-size="11" fill="#1a1a1a" text-anchor="middle">common ground</text>
+
+  <!-- G10 -> R2 -> ÄKTA Digital in 1 (pin 1) -->
+  <line x1="320" y1="330" x2="470" y2="330" stroke="#2e7d32" stroke-width="3"/>
+  <rect x="470" y="320" width="60" height="20" fill="#ffffff" stroke="#1a1a1a" stroke-width="2"/>
+  <line x1="530" y1="330" x2="760" y2="330" stroke="#2e7d32" stroke-width="3"/>
+  <text x="500" y="358" font-size="12" font-weight="700" fill="#1a1a1a" text-anchor="middle">R2 1 kΩ</text>
+  <text x="500" y="372" font-size="11" fill="#444" text-anchor="middle">(protection)</text>
+  <text x="652" y="322" font-size="11" fill="#2e7d32" text-anchor="middle">needle_ready  (0 = needle in vial)</text>
+
+  <!-- junction dots -->
+  <g fill="#1a1a1a">
+    <circle cx="420" cy="150" r="5" fill="#c62828"/>
+    <circle cx="420" cy="210" r="5" fill="#1565c0"/>
+    <circle cx="620" cy="270" r="5"/>
+  </g>
+  <!-- pin terminals -->
+  <g fill="#ffffff" stroke="#1a1a1a" stroke-width="2">
+    <circle cx="320" cy="150" r="5"/><circle cx="320" cy="210" r="5"/>
+    <circle cx="320" cy="270" r="5"/><circle cx="320" cy="330" r="5"/>
+    <circle cx="500" cy="104" r="5"/><circle cx="620" cy="104" r="5"/>
+    <circle cx="760" cy="210" r="5"/><circle cx="760" cy="270" r="5"/><circle cx="760" cy="330" r="5"/>
+  </g>
+
+  <!-- ÄKTA box -->
+  <g stroke="#6a4c93" stroke-width="2">
+    <line x1="760" y1="210" x2="790" y2="210"/>
+    <line x1="760" y1="270" x2="790" y2="270"/>
+    <line x1="760" y1="330" x2="790" y2="330"/>
+  </g>
+  <rect x="790" y="80" width="180" height="300" rx="8" fill="#f5f0fb" stroke="#6a4c93" stroke-width="2"/>
+  <text x="806" y="106" font-size="15" font-weight="700" fill="#6a4c93">ÄKTA pure</text>
+  <text x="806" y="124" font-size="13" font-weight="700" fill="#6a4c93">I/O-box E9 (9-pin D-sub)</text>
+  <!-- D-sub pin map -->
+  <g font-size="11" fill="#6a4c93" text-anchor="middle">
+    <text x="830" y="150">1</text><text x="850" y="150">2</text><text x="870" y="150">3</text><text x="890" y="150">4</text><text x="910" y="150">5</text>
+    <text x="840" y="168">6</text><text x="860" y="168">7</text><text x="880" y="168">8</text><text x="900" y="168">9</text>
+  </g>
+  <g font-size="13" fill="#1a1a1a">
+    <text x="800" y="214"><tspan font-weight="700">6</tspan>  Digital out 1</text>
+    <text x="800" y="274"><tspan font-weight="700">5</tspan>  Signal ground</text>
+    <text x="800" y="334"><tspan font-weight="700">1</tspan>  Digital in 1</text>
+  </g>
+
+  <!-- Notes -->
+  <line x1="40" y1="410" x2="960" y2="410" stroke="#cccccc"/>
+  <text x="40" y="436" font-size="14" font-weight="700" fill="#1a1a1a">ÄKTA signal levels (ÄKTA pure User Manual 29119969 AB, §3.5.3–3.5.4)</text>
+  <g font-size="13" fill="#1a1a1a">
+    <text x="56" y="460">• Digital in (pins 1–4): logical 1 = open circuit or 3.5–5.0 V; logical 0 = closed to signal ground or 0–0.8 V (TTL compatible).</text>
+    <text x="56" y="481">• Digital out (pins 6–9): a switch to signal ground, no voltage of its own; 1 = open, 0 = closed. Keep the pull-up at 5 V max.</text>
+    <text x="56" y="502">• Pin 5 is the common signal ground for all digital signals. Signals are scanned at 10 Hz.</text>
+  </g>
+  <text x="40" y="534" font-size="14" font-weight="700" fill="#1a1a1a">How the autosampler uses it</text>
+  <g font-size="13" fill="#1a1a1a">
+    <text x="56" y="558">• G08 reads the ÄKTA's Digital out 1: contact open → 5 V through R1 → 1;  contact closed → 0 V → 0 = ÄKTA ready for sample.</text>
+    <text x="56" y="579">• G10 drives the ÄKTA's Digital in 1: high 5 V → 1 (idle);  low 0 V → 0 = needle in the vial.  No inversion, no transistor needed.</text>
+    <text x="56" y="600">• ODrive config (set by the app, then save + reboot): gpio8_mode = DIGITAL (input), gpio10_mode = DIGITAL (output).</text>
+  </g>
+  <text x="40" y="632" font-size="14" font-weight="700" fill="#c62828">Before wiring</text>
+  <g font-size="13" fill="#1a1a1a">
+    <text x="56" y="656">• ISO_VDD must be 5 V: at 3.3 V the ÄKTA would not see a reliable logic 1 (needs ≥ 3.5 V). Power everything off while wiring.</text>
+    <text x="56" y="677">• Keep the ÄKTA side on ISO_GND only — not the ODrive's main GND — so the ÄKTA stays isolated from the motor drive.</text>
+    <text x="56" y="698">• Check the pin names against the ODrive Pro datasheet figure and the E9 label. Crossing lines without a dot are not connected.</text>
+  </g>
+</svg>

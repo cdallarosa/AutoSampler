@@ -173,6 +173,23 @@ The E9 D-sub has digital in 1–4 on pins 1–4, **signal ground on pin 5**, and
 - On the T4, use FIO4–FIO7 or EIO lines. FIO0–3 are analog by default.
 - Install the **LabJack LJM driver** from labjack.com before using `labjack-ljm`. For a U3, set `"device": "U3"` and `pip install LabJackPython`.
 
+### Wiring: I/O-box E9 to the X ODrive's isolated I/O (instead of the LabJack)
+
+![ÄKTA I/O-box E9 to ODrive Pro isolated I/O](docs/akta_odrive_wiring.svg)
+
+The ÄKTA I/O box is 5 V logic (manual §3.5.3–3.5.4): Digital in reads 1 for open or 3.5–5.0 V and 0 for closed or
+0–0.8 V. Digital out is a switch to signal ground (1 = open, 0 = closed).
+
+| ODrive Pro (X), J12/J13 | ÄKTA E9 | Notes |
+| --- | --- | --- |
+| ISO_VDD | — | **5 V** from a small separate supply. 3.3 V is below the ÄKTA's logic-1 level. |
+| ISO_GND | pin 5, signal ground | common ground. Keep the ÄKTA on ISO_GND only, not the ODrive's main GND. |
+| G08, isolated input, with 10 kΩ to ISO_VDD | pin 6, Digital out 1 | `sample_request`: contact closed = 0 = ready for sample |
+| G10, isolated output, through 1 kΩ | pin 1, Digital in 1 | `needle_ready`: 0 V = 0 = needle in the vial, 5 V = 1 = idle |
+
+Match the signal names on the board against the ODrive Pro datasheet figure, and the D-sub pins against the
+E9 label. The app sets gpio8 as a digital input and gpio10 as a digital output (save and reboot the board).
+
 ### Finding UNICORN OPC UA node ids
 
 The node ids in `akta.json` are placeholders. List the real ones from the UNICORN instrument server:
