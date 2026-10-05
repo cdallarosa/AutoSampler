@@ -1,10 +1,10 @@
 """
 Run the autosampler UI.
 
-    python -m akta_autosampler            # mode from config/gantry.json ("simulate")
-    python -m akta_autosampler --sim      # force simulation
-    python -m akta_autosampler --hardware # force real ODrives
+    python -m akta_autosampler                   # the real gantry (ODrives over USB)
     python -m akta_autosampler --akta hardware   # ÄKTA link mode (sim | hardware | off), default from config/akta.json
+
+The gantry simulator is only for the automated tests and UI development (hidden --sim flag).
 """
 
 import argparse
@@ -19,9 +19,9 @@ from .gantry import Gantry
 
 def main():
     parser = argparse.ArgumentParser(prog="akta_autosampler", description="ÄKTA autosampler gantry UI")
-    mode = parser.add_mutually_exclusive_group()
-    mode.add_argument("--sim", action="store_true", help="run against simulated axes")
-    mode.add_argument("--hardware", action="store_true", help="run against real ODrive boards")
+    # Developer only: simulated axes for UI work without hardware. --hardware is the default (kept for old run configs).
+    parser.add_argument("--sim", action="store_true", help=argparse.SUPPRESS)
+    parser.add_argument("--hardware", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--akta", choices=["sim", "hardware", "off"],
                         help="ÄKTA link mode (default: 'mode' in config/akta.json)")
     parser.add_argument("--config", type=Path, default=CONFIG_DIR, help="config directory")
@@ -36,10 +36,7 @@ def main():
                         format="%(asctime)s %(levelname)-7s %(name)s: %(message)s")
 
     config = load_gantry_config(args.config / "gantry.json")
-    if args.sim:
-        config.simulate = True
-    elif args.hardware:
-        config.simulate = False
+    config.simulate = args.sim  # always the real gantry unless the hidden developer flag is given
     deck = Deck.load(args.config)
     gantry = Gantry(config)
 

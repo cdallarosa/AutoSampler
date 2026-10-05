@@ -1,10 +1,29 @@
 {
+  "_comment": "Coordinates from home (X/Y 0 = a back-off from the home-end stops). Bottle A1 is at home (0, 0); 54 bottles A1-F9 on a 2.75 in pitch; the sample position is one pitch below row F, centred.",
   "slots": {
-    "rack1": {"origin_mm": [20.0, 20.0], "labware": "vial_rack_4x6"},
-    "plate1": {"origin_mm": [160.0, 20.0], "labware": "plate_96_well"}
+    "bottles": {
+      "origin_mm": [
+        0.0,
+        0.0
+      ],
+      "labware": "bottle_2_5in_6x9"
+    },
+    "sample": {
+      "origin_mm": [
+        279.4,
+        419.1
+      ],
+      "labware": "sample_position_2_5in"
+    }
   },
   "positions": {
-    "park": [0.0, 0.0, 0.0],
-    "wash": [280.0, 250.0, 60.0]
+    "park": [
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  "visual": {
+    "tip_home_height_mm": 300.0
   }
 }

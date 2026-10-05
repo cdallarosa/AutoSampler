@@ -30,9 +30,8 @@ config/
 1. **File → Open** this folder.
 2. PyCharm should pick up the `.venv` interpreter (Python 3.12). If it doesn't, go to **Settings → Project → Python Interpreter → Add → Existing → `.venv\Scripts\python.exe`**.
 3. Choose a run configuration from the toolbar. They are shared via `.run/`:
-   - **Autosampler (sim)**: simulated axes, so no hardware is needed.
-   - **Autosampler (hardware)**: real ODrives.
-   - **Tests**: pytest against the simulator.
+   - **Autosampler**: the app, driving the real ODrives over USB. Close the ODrive GUI first: only one program can hold the USB link.
+   - **Tests**: pytest. The tests use a built-in gantry simulator, so they need no hardware.
 
 The UI opens at http://127.0.0.1:8080.
 
@@ -41,11 +40,11 @@ From a terminal:
 ```bash
 py -3.12 -m venv .venv
 .venv\Scripts\pip install -r requirements.txt
-.venv\Scripts\python -m akta_autosampler --sim
+.venv\Scripts\python -m akta_autosampler
 .venv\Scripts\python -m pytest
 ```
 
-Other flags: `--hardware`, `--port 8081`, `--no-browser`, `--debug`, and `--native`, which opens a desktop window and needs `pip install pywebview`.
+Other flags: `--akta sim|hardware|off` (the ÄKTA link, default from `config/akta.json`), `--port 8081`, `--no-browser`, `--debug`, and `--native`, which opens a desktop window and needs `pip install pywebview`.
 
 ## Coordinates
 
@@ -56,29 +55,56 @@ Other flags: `--hardware`, `--port 8081`, `--no-browser`, `--debug`, and `--nati
 
 ## Using the UI
 
-**Header**
-- Live XYZ readout and homed status.
-- **STOP** halts all axes with the motors still holding, and aborts the sequence.
-- **Motors off** de-energises the motors. Re-home afterwards.
+The UI is laid out like UNICORN 7 System Control: a title bar with module tabs, a menu bar (File / View / Manual / System / ÄKTA / Help), a toolbar (Run, Pause, Continue, End, Home, Raise Z, Park, Connect, Reset, **STOP**), system tabs showing the gantry and ÄKTA status, and a status bar.
 
-**Control tab**
-- Connect.
-- Home all, with Z homed first.
-- Jog. This works before homing, with no limit checks.
-- Go to XYZ.
-- Named positions.
-- Reset faults.
+**Deck:** 24 × 32 in workspace with 30 bottles, 4 in in diameter, in a 5 × 6 grid on a 4.5 in pitch (A1–F5), plus one **sample position** at front-centre. Edit `config/deck.json` and `config/labware/*.json` to change it.
 
-**Deck tab**
-- Click a well to select it.
-- **Go (top)**, **Lower to sample** and **Raise** move the needle.
-- **Teach** calibrates from the current needle position:
-  - *A1 is here* sets the slot origin in `deck.json`.
-  - *Z top here* and *Z sample here* set the heights in the labware file.
+**System Control**
+- **Process Picture:** a 2D top-down view of the deck.
+  - Home is top-left, A1 is the top-left bottle, X runs right and Y runs down.
+  - The gantry bridge and carriage move live, a dashed line and ring show where the gantry is going, and a Z gauge shows needle depth.
+  - The bottle the needle is in turns green.
+  - Wash bottles are blue and labelled WASH. A blue badge on each bottle shows its place(s) in the run order.
+  - Click a bottle to select it. Its dialog opens right beside it: **Go** (move there and lower the needle to sampling depth), **Top** (needle at the bottle top), **Raise**, **Add to run order**.
+  - Black value boxes show X, Y, Z and the gantry state.
+- **Run order:** the bottles of the current method (or of the sample list, before it becomes a method). The current one is highlighted while running.
+- **Run Log:** app messages.
+- **Manual instructions:**
+  - Selected bottle actions.
+  - Safe move to X, Y, Z (**Set**).
+  - Jog. This works before homing, with no limit checks.
+  - Homing.
 
-**Sequence tab**
-- Load a sequence file, or build a sample list: slot, wells such as `A1-A6, B1`, dwell, wash and end position.
-- Run, Pause (takes effect after the current step), Resume and Abort. On abort the needle lifts to safe Z.
+**Moves:** travel between bottles is a coordinated **vector move**. Each axis gets its speed and acceleration scaled to its share of the distance, so X and Y move together the whole way and the needle follows a straight diagonal line. Z always lifts to the safe height first and lowers last.
+
+**Starting and stopping**
+- **Play** (▶) runs the open method. If only a sample list exists, or it changed since the method was built, Play builds the method from it first. A **Start run** dialog summarises the run before anything moves: bottle visits, whether it homes first, whether the ÄKTA handshake is on, and the end position.
+- **Pause** pauses after the current step. The badge shows "pausing…" until then.
+- **End** (■) is graceful and asks first. The needle finishes the bottle it is in, raises, and the gantry parks (state *ended*).
+- **STOP** halts all motion immediately and **nothing moves afterwards on its own**. A red recovery banner says where it stopped and whether the needle is still down, and offers **Raise needle**, **Park**, **Re-run from here…** (restarts at the stopped bottle) and **Dismiss**.
+- **Motors off** asks first, then de-energises the motors. Re-home afterwards.
+- Until the gantry is homed, a banner offers **Home all**. The position readouts show "—", and Go / Top / Raise / Move / Park are disabled. Jog still works.
+
+**Sample Manager**: decide what is in each bottle and the order they are visited.
+- **Positions:** name, role (sample / wash / blank / empty) and notes for every bottle. Saved to `config/samples.json`. F5 starts as the wash bottle.
+- **Run order:** an ordered list such as *A1 → wash → A2 → wash → A3*.
+  - Click bottles on the right to append them. Wash-role bottles are added as washes.
+  - **+ Wash** appends a wash, **Insert washes between** puts one between every pair of samples, and **Remove washes** takes them out.
+  - Drag rows to reorder. Double-click Type, Dwell, Depth or ÄKTA to edit.
+  - Lists are saved to `config/sample_lists/`.
+- **Send to Method Editor** turns the list into a method. **Create method & Run…** does that and asks to start it.
+- **Clear…** asks first. Clear, Remove selected, Remove washes, Insert washes, reordering and Open can all be undone with **Undo**.
+- **Pause in each sample for the operator** adds a manual pause with the needle in each sample (manual ÄKTA sync).
+- With the ÄKTA handshake, the ÄKTA sets the pace: lower → signal ready → wait for done → (optional dwell) → raise.
+
+**Method Editor**
+- Shows the method outline (every step, highlighted while running). You can open or save method files here (`config/sequences/`).
+- Sample lists are built only in the Sample Manager; there is no second builder here.
+
+**Administration**
+- **ÄKTA link:** signals, manual outputs and the handshake.
+- **Axes:** diagnostics.
+- **Teach:** set the A1 / position XY, bottle top Z and sampling depth Z from the current needle position.
 
 ## Sequences
 
@@ -117,7 +143,7 @@ The link exposes **named signals**. Each signal is read from, or written to, one
 - **`opcua`**: the UNICORN OPC UA server, which needs the separate licence. Good for status: run state, phase and block, monitor values, and the ÄKTA's own digital I/O values.
 - **`labjack`**: a LabJack T4/T7 (via LJM) or U3 wired to the **I/O-box E9**. This is a hardwired handshake and does not depend on OPC UA.
 
-A background thread polls every input signal. The **ÄKTA** tab shows them live, with manual 0/1 buttons for the outputs, and the header shows the run state and phase.
+A background thread polls every input signal. **Administration → ÄKTA link** shows them live, with manual 0/1 buttons for the outputs, and the header shows the run state and phase.
 
 Values use **UNICORN logic** for the I/O-box: `1` = open circuit and `0` = closed circuit to signal ground.
 
@@ -157,21 +183,52 @@ The node ids in `akta.json` are placeholders. List the real ones from the UNICOR
 
 Each line shows the path, node id, data type, current value and access (`R`/`RW`). Copy the node ids into `signals`.
 
-- **Credentials:** if the server needs them, set `username` and put the password in the environment variable named by `password_env`. Never put it in the file.
-- **Signed/encrypted endpoints:** set `security_string`.
+- **Credentials:** the user name and password come from the environment variables named by `username_env` / `password_env` (`AKTA_OPCUA_USER` / `AKTA_OPCUA_PASSWORD`). Never put them in the file.
+- **Security (UNICORN):** the server only offers secured endpoints (Basic256Sha256 / Aes128_Sha256_RsaOaep, Sign or SignAndEncrypt, no anonymous login). Set `opcua.security` to a client `cert`/`key` the server **already trusts**; a new self-signed cert lands in UNICORN's `rejected/` folder until an admin trusts it. The application URI is read from the certificate (UNICORN refuses a mismatch), and the server certificate is fetched automatically.
+- **Which server:** the only UNICORN OPC UA server found on the network is `opc.tcp://opcsrv:60434/OPC/HistoricalAccessServer` ("UNICORN OPC SERVER - HDA"). It serves *archived results*, not live run status. Live status for the handshake needs UNICORN's real-time OPC UA server; until that is located, use the LabJack signals.
+- **Quick checks:** `--endpoints-only` lists endpoints without credentials; `--from-config` takes the endpoint, certificate and env-var names from `akta.json`. The HDA archive is very large, so keep `--depth` low (3–4) or start from a `--root` node.
 - **Any node can be a signal.** For example, map the ÄKTA's `Digital out 1` via OPC UA instead of wiring it.
 - **Writes over OPC UA:** if UNICORN marks a node as writable (`RW`), it can be an output (`"output": true`, plus `"type"` such as `"Int32"`). Otherwise, keep outputs on the LabJack.
 
+## ODrive configuration and start-up
+
+The boards are three **ODrive Pro** controllers (hardware v4.4, firmware 0.6.11), one axis each. The board-to-axis mapping is in `gantry.json`.
+
+- **The configuration lives on the boards.** Set it in the ODrive web GUI, then save a copy into this repo:
+  ```bash
+  .venv\Scripts\python -m akta_autosampler.tools.odrive_backup
+  ```
+  This writes `config/odrive/<axis>_<serial>.json` with every `*.config.*` value. `--restore` writes a saved file back to the board and saves it.
+- **Checking the config:** `gantry.json`'s `motor` and `board` sections mirror the boards. `tools.odrive_setup` (a dry run by default) shows any differences; `--apply` writes them.
+- **Start-up procedure:** the encoders are incremental with no index pulse, so the encoder offset is lost at every power-up. **Home all** (or Home X/Y/Z) runs this per axis before homing:
+  1. If the motor isn't calibrated (R/L invalid), it runs `FULL_CALIBRATION_SEQUENCE`. Otherwise, if the encoder offset isn't valid, it runs `ENCODER_OFFSET_CALIBRATION`. **The motor moves slightly**, about `calib_scan_distance`.
+  2. Any ODrive procedure error, a timeout or STOP aborts it, and that axis is not homed.
+  3. Then it homes against the hard stop, as before.
+- **Calibrating from the app:** go to *Administration → Calibration (ODrive)*, or *Manual → Calibration…*. Each axis shows its board, the calibration flags (motor, encoder offset, ready) and the measured R/L. Each button asks for confirmation first, and STOP aborts it.
+  - **Motor…** measures R/L. The motor beeps but doesn't turn. Needed once per motor, then use *Save to board*.
+  - **Encoder offset…** is needed after every power-up. The motor turns slightly.
+  - **Full…** runs both.
+  - **Scale…** measures `turns_per_mm` (needs homing first). Mark the carriage, make a slow test move (50 mm at the current scale), and measure how far it really went. Apply + save then writes the corrected value into `gantry.json`. Homing stays valid, and positions read in real mm from then on.
+  - **Save to board…** writes the board's config to flash. The board reboots, so redo the encoder offset and homing afterwards. Run `tools.odrive_backup` again to refresh the copy in the repo.
+- **Tuning (Administration → Tuning):** pick the axis and read its gains from the board (pos_gain, vel_gain, vel_integrator_gain, encoder_bandwidth). Edit them, then **Apply** (live, not saved) or **Step test…**: the axis moves a few mm and back, and the plot shows position against target with overshoot, settle time, oscillations and remaining error. **Copy from Y** loads the reference axis's gains. **Save to gantry.json…** keeps them; the app writes them to the board on every connect, so the ODrive GUI isn't needed. When homed, the step test goes the way there's room. When not homed, check by eye that there's room in the + direction. It stops itself on overspeed or if the drive disarms.
+- **An axis that isn't wired yet:** set `"enabled": false` on it in `gantry.json` (Z is set this way for now). In `--hardware` mode that axis becomes a simulated stand-in, so the app works with only X and Y connected. The Calibration pane marks it *stand-in (not wired)*. When Z is wired, set it back to `true` and check its serial.
+
 ## First power-on with hardware
 
-Everything in `config/gantry.json` is a placeholder until you check it:
+The gantry talks to the ODrives over **USB**, using the `odrive` Python package (0.6.x) and its bundled USB library. Everything in `config/gantry.json` is a placeholder until you check it:
 
-1. **Driver:** on Windows the ODrive may need the WinUSB driver (install it with Zadig) for `odrive.find_any` to see it. Check the board with `odrivetool` first.
-2. **Serials and axis numbers:** set `serial` and `axis_number` per axis. The defaults come from the old ProteinMakerV5 test scripts.
-3. **`turns_per_mm`:** set this from your belt/leadscrew pitch. The default of 0.1 is a guess.
-4. **Limits:** start with low `current_soft_max` and `torque_soft_limit` and slow `homing_speed_mm_s`. Keep a hand on a hardware e-stop. The software STOP is not a safety device.
-5. **Homing direction:** home one axis at a time (Control → Home X) and confirm that `homing_direction` drives toward the intended end. Z must home **up**.
-6. **Teach the deck:**
+1. **Set up and calibrate each ODrive in the ODrive web GUI or `odrivetool` first:** motor type, pole pairs, encoder, current limits and DC bus. The app keeps that stored setup (`motor.write_motor_config: false`). It only applies what it needs to run: position mode, trajectory limits, a torque clamp and the watchdog. Set `write_motor_config: true` only if you want `gantry.json`'s motor and encoder values written on every connect.
+2. **Check the USB connection (read-only, nothing moves):** close the web GUI and `odrivetool`, since only one program can hold the USB link, then run:
+   ```bash
+   .venv\Scripts\python -m akta_autosampler.tools.odrive_check --any
+   ```
+   It prints the board's serial, hardware and firmware versions, bus voltage and axis errors. Put the serials into `gantry.json`, then run it without `--any` to confirm every configured board is found.
+3. **Supported boards:** this driver targets ODrive Pro and S1 boards (firmware 0.6.x API). A legacy ODrive v3.6 board running 0.5.x firmware has a different API, needs the `odrive==0.5.x` package, and needs driver changes. On Windows, v3.6 boards also need the WinUSB driver installed with Zadig.
+4. **Serials and axis numbers:** set `serial` and `axis_number` for each axis.
+5. **`turns_per_mm`:** set this from your belt or leadscrew pitch. The default of 0.1 is a guess.
+6. **Limits:** start with low `torque_soft_limit` and slow `homing_speed_mm_s`. Keep a hand on a hardware e-stop. The software STOP is not a safety device.
+7. **Homing direction:** home one axis at a time (Manual → Home X) and confirm that `homing_direction` drives toward the intended end. Z must home **up**.
+8. **Teach the deck:**
    - Jog to A1 of each rack and click *A1 is here*.
    - Jog Z to just above a vial and click *Z top here*.
    - Jog down to sampling depth and click *Z sample here*.

@@ -103,7 +103,8 @@ class SimulatedAxis(BaseAxis):
                 self._target_vel = 0.0
         return True
 
-    def _hw_set_target(self, motor_pos: float, velocity: float) -> None:
+    def _hw_set_target(self, motor_pos: float, velocity: float, accel: Optional[float] = None,
+                       decel: Optional[float] = None) -> None:
         with self._sim_lock:
             self._integrate()
             self._mode = "position"

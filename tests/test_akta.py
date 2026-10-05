@@ -80,7 +80,7 @@ def test_inputs_are_read_only(sim_akta):
 
 def test_handshake_sequence_runs(homed, deck, sim_akta, akta_config):
     seq = Sequence.from_dict({"name": "hs", "steps": [
-        {"type": "samples", "slot": "rack1", "wells": "A1-A2", "akta_handshake": True,
+        {"type": "samples", "slot": "bottles", "wells": "A1-A2", "akta_handshake": True,
          "end_position": "park"}]}, deck, akta_config["handshake"])
     types = [s.type for s in seq.steps]
     assert types[:6] == ["move_to_well", "wait_for_akta", "lower", "signal_akta", "wait_for_akta", "signal_akta"]
@@ -97,7 +97,7 @@ def test_abort_during_handshake_resets_outputs(homed, deck, sim_akta, akta_confi
     sim = sim_akta.backends["sim"]
     sim.sample_time_s = 30  # ÄKTA "loads" for a long time
     seq = Sequence.from_dict({"steps": [
-        {"type": "samples", "slot": "rack1", "wells": ["B1"], "akta_handshake": True}]},
+        {"type": "samples", "slot": "bottles", "wells": ["B1"], "akta_handshake": True}]},
         deck, akta_config["handshake"])
     runner = SequenceRunner(homed, deck, sim_akta)
     runner.start(seq)
@@ -105,8 +105,8 @@ def test_abort_during_handshake_resets_outputs(homed, deck, sim_akta, akta_confi
     runner.abort()
     assert wait_for(lambda: not runner.is_active)
     assert runner.state == RunnerState.ABORTED
-    assert sim_akta.get("needle_ready") == 1
-    assert homed.get_position().z == pytest.approx(homed.config.z_safe_mm, abs=0.2)
+    assert sim_akta.get("needle_ready") == 1  # ÄKTA told the needle is no longer ready
+    assert homed.get_position().z > 50  # STOP: needle left down where it was, no automatic move
 
 
 def test_wait_timeout_fails(homed, deck, sim_akta):
@@ -227,3 +227,13 @@ def test_u3_line_index():
     assert LabJackBackend._u3_index("FIO4") == 4
     assert LabJackBackend._u3_index("EIO0") == 8
     assert LabJackBackend._u3_index("CIO1") == 17
+
+
+def test_handshake_dwell_comes_after_akta_done(deck, akta_config):
+    """With the handshake the ÄKTA sets the pace: ready is signalled at once, dwell only after 'done'."""
+    seq = Sequence.from_dict({"steps": [
+        {"type": "samples", "slot": "bottles", "wells": ["A1"], "dwell_s": 5, "akta_handshake": True}]},
+        deck, akta_config["handshake"])
+    types = [s.type for s in seq.steps]
+    assert types == ["move_to_well", "wait_for_akta", "lower", "signal_akta", "wait_for_akta",
+                     "dwell", "signal_akta", "raise"]

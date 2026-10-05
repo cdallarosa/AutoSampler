@@ -1,0 +1,114 @@
+{
+  "name": "Test: Z full stroke (0 -> 82.8 mm) at 6 positions",
+  "steps": [
+    {
+      "type": "home"
+    },
+    {
+      "type": "move_to_well",
+      "slot": "bottles",
+      "well": "A1",
+      "height": "safe"
+    },
+    {
+      "type": "lower",
+      "depth": 52.8
+    },
+    {
+      "type": "dwell",
+      "seconds": 1
+    },
+    {
+      "type": "raise"
+    },
+    {
+      "type": "move_to_well",
+      "slot": "bottles",
+      "well": "A9",
+      "height": "safe"
+    },
+    {
+      "type": "lower",
+      "depth": 52.8
+    },
+    {
+      "type": "dwell",
+      "seconds": 1
+    },
+    {
+      "type": "raise"
+    },
+    {
+      "type": "move_to_well",
+      "slot": "bottles",
+      "well": "F9",
+      "height": "safe"
+    },
+    {
+      "type": "lower",
+      "depth": 52.8
+    },
+    {
+      "type": "dwell",
+      "seconds": 1
+    },
+    {
+      "type": "raise"
+    },
+    {
+      "type": "move_to_well",
+      "slot": "bottles",
+      "well": "F1",
+      "height": "safe"
+    },
+    {
+      "type": "lower",
+      "depth": 52.8
+    },
+    {
+      "type": "dwell",
+      "seconds": 1
+    },
+    {
+      "type": "raise"
+    },
+    {
+      "type": "move_to_well",
+      "slot": "bottles",
+      "well": "C5",
+      "height": "safe"
+    },
+    {
+      "type": "lower",
+      "depth": 52.8
+    },
+    {
+      "type": "dwell",
+      "seconds": 1
+    },
+    {
+      "type": "raise"
+    },
+    {
+      "type": "move_to_well",
+      "slot": "sample",
+      "well": "A1",
+      "height": "safe"
+    },
+    {
+      "type": "lower",
+      "depth": 52.8
+    },
+    {
+      "type": "dwell",
+      "seconds": 1
+    },
+    {
+      "type": "raise"
+    },
+    {
+      "type": "move_to_position",
+      "name": "park"
+    }
+  ]
+}

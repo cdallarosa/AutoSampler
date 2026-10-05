@@ -1,16 +1,25 @@
 {
-  "name": "ÄKTA handshake: 4 vials",
+  "name": "ÄKTA handshake: 4 bottles",
   "steps": [
-    {"type": "home"},
-    {"type": "wait_for_akta", "signal": "run_state", "in": ["Running", "Hold"], "timeout_s": 600,
-     "message": "Wait for the ÄKTA method to start"},
+    {
+      "type": "home"
+    },
+    {
+      "type": "wait_for_akta",
+      "signal": "run_state",
+      "in": [
+        "Running",
+        "Hold"
+      ],
+      "timeout_s": 600,
+      "message": "Wait for the ÄKTA method to start"
+    },
     {
       "type": "samples",
-      "slot": "rack1",
+      "slot": "bottles",
       "wells": "A1-A4",
       "depth": "sample",
       "akta_handshake": true,
-      "wash": {"position": "wash", "dwell_s": 3},
       "end_position": "park"
     }
   ]

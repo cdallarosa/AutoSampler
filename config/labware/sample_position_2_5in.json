@@ -1,0 +1,16 @@
+{
+  "_comment": "The single sample position: one 2.5 in bottle, centred on the slot origin.",
+  "name": "Sample position (2.5 in bottle)",
+  "rows": 1,
+  "cols": 1,
+  "pitch_x_mm": 69.85,
+  "pitch_y_mm": 69.85,
+  "a1_offset_mm": [
+    0.0,
+    0.0
+  ],
+  "z_top_mm": 30.0,
+  "z_sample_mm": 75.0,
+  "well_diameter_mm": 63.5,
+  "height_mm": 101.6
+}

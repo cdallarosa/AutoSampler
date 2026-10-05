@@ -1,0 +1,10 @@
+{
+  "name": "Example: A1, wash, A2, wash, A3",
+  "entries": [
+    {"kind": "sample", "slot": "bottles", "well": "A1", "dwell_s": 5, "depth": "sample", "handshake": false},
+    {"kind": "wash", "slot": "bottles", "well": "F5", "dwell_s": 3, "depth": "sample", "handshake": false},
+    {"kind": "sample", "slot": "bottles", "well": "A2", "dwell_s": 5, "depth": "sample", "handshake": false},
+    {"kind": "wash", "slot": "bottles", "well": "F5", "dwell_s": 3, "depth": "sample", "handshake": false},
+    {"kind": "sample", "slot": "bottles", "well": "A3", "dwell_s": 5, "depth": "sample", "handshake": false}
+  ]
+}

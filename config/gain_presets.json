@@ -1,0 +1,22 @@
+{
+  "ODrive default (Y)": {
+    "pos_gain": 20.0,
+    "vel_gain": 0.16666666666666666,
+    "vel_integrator_gain": 0.3333333333333333,
+    "enable_gain_scheduling": 0.0
+  },
+  "Smooth travel + quiet hold": {
+    "pos_gain": 20.0,
+    "vel_gain": 0.65,
+    "vel_integrator_gain": 0.25,
+    "enable_gain_scheduling": 1.0,
+    "gain_scheduling_width_mm": 1.0,
+    "gain_scheduling_min_ratio": 0.2
+  },
+  "Z gentle": {
+    "pos_gain": 5.0,
+    "vel_gain": 0.05,
+    "vel_integrator_gain": 0.1,
+    "enable_gain_scheduling": 0.0
+  }
+}

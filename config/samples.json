@@ -1,0 +1,5 @@
+{
+  "bottles": {
+    "bottles:F5": {"name": "Wash buffer", "role": "wash", "notes": "Needle wash between samples"}
+  }
+}

@@ -55,6 +55,56 @@ def _plain(value: Any) -> Any:
     return str(value)
 
 
+def cert_application_uri(cert_path: str) -> Optional[str]:
+    """The URI SubjectAltName of a client certificate (der or pem)."""
+    from cryptography import x509
+
+    raw = open(cert_path, "rb").read()
+    cert = x509.load_der_x509_certificate(raw) if raw[:1] == b"\x30" else x509.load_pem_x509_certificate(raw)
+    try:
+        san = cert.extensions.get_extension_for_class(x509.SubjectAlternativeName).value
+    except x509.ExtensionNotFound:
+        return None
+    uris = san.get_values_for_type(x509.UniformResourceIdentifier)
+    return uris[0] if uris else None
+
+
+def configure_opcua_client(client, *, username: Optional[str] = None, password: Optional[str] = None,
+                           security: Optional[dict] = None, security_string: Optional[str] = None):
+    """
+    Apply UNICORN's security requirements to an asyncua sync Client.
+
+    UNICORN's servers publish only secured endpoints (Basic256Sha256 /
+    Aes128_Sha256_RsaOaep, Sign or SignAndEncrypt; UserName or Certificate
+    tokens, no anonymous), so a client certificate is mandatory:
+
+    - the certificate must already be *trusted* by the server; a new
+      self-signed one lands in UNICORN's rejected/ folder until an admin
+      moves it to trusted/;
+    - the client application_uri must equal the certificate's URI SAN, or the
+      session is refused (read from the cert here);
+    - the server certificate is needed for the secure channel; asyncua
+      fetches it from endpoint discovery when ``server_cert`` is not given.
+    """
+    if security:
+        from asyncua import ua
+        from asyncua.crypto import security_policies as sp
+
+        cert, key = security["cert"], security["key"]
+        policy = getattr(sp, f"SecurityPolicy{security.get('policy', 'Basic256Sha256')}")
+        mode = getattr(ua.MessageSecurityMode, security.get("mode", "SignAndEncrypt"))
+        app_uri = security.get("application_uri") or cert_application_uri(cert)
+        if app_uri:
+            client.application_uri = app_uri
+        client.set_security(policy, cert, key, server_certificate=security.get("server_cert"), mode=mode)
+    elif security_string:
+        client.set_security_string(security_string)
+    if username:
+        client.set_user(username)
+    if password:
+        client.set_password(password)
+
+
 class OpcUaBackend(Backend):
     """
     Polls UNICORN OPC UA nodes. Node ids come from config (find them with
@@ -64,12 +114,15 @@ class OpcUaBackend(Backend):
 
     def __init__(self, endpoint: str, username: Optional[str] = None,
                  password_env: Optional[str] = None, security_string: Optional[str] = None,
-                 timeout_s: float = 4.0):
+                 timeout_s: float = 4.0, security: Optional[dict] = None,
+                 username_env: Optional[str] = None):
         super().__init__()
         self.endpoint = endpoint
         self.username = username
+        self.username_env = username_env
         self.password_env = password_env
         self.security_string = security_string
+        self.security = security
         self.timeout_s = timeout_s
         self._client = None
         self._nodes: Dict[str, Any] = {}
@@ -78,14 +131,20 @@ class OpcUaBackend(Backend):
         from asyncua.sync import Client
 
         client = Client(self.endpoint, timeout=self.timeout_s)
-        if self.username:
-            client.set_user(self.username)
-            password = os.environ.get(self.password_env or "", "")
-            if password:
-                client.set_password(password)
-        if self.security_string:
-            client.set_security_string(self.security_string)
-        client.connect()
+        username = os.environ.get(self.username_env or "") or self.username
+        try:
+            configure_opcua_client(client, username=username,
+                                   password=os.environ.get(self.password_env or "") or None,
+                                   security=self.security, security_string=self.security_string)
+            client.connect()
+        except Exception:
+            # The sync Client owns an event-loop thread; stop it or every failed
+            # (re)connect attempt leaks a thread and blocks interpreter exit.
+            try:
+                client.disconnect()
+            except Exception:
+                pass
+            raise
         self._client = client
         self._nodes.clear()
         self.connected = True
@@ -231,7 +290,8 @@ def make_backends(config: dict) -> List[Backend]:
     if config.get("opcua", {}).get("endpoint"):
         o = config["opcua"]
         backends.append(OpcUaBackend(o["endpoint"], o.get("username"), o.get("password_env"),
-                                     o.get("security_string"), o.get("timeout_s", 4.0)))
+                                     o.get("security_string"), o.get("timeout_s", 4.0),
+                                     o.get("security"), o.get("username_env")))
     if config.get("labjack", {}).get("enabled", True) and "labjack" in config:
         lj = config["labjack"]
         backends.append(LabJackBackend(lj.get("device", "T4"), lj.get("connection", "ANY"),

@@ -5,11 +5,18 @@
   "reconnect_s": 5,
 
   "opcua": {
-    "endpoint": "opc.tcp://UNICORN-PC:4840",
-    "username": null,
+    "_comment": "Only server found so far: UNICORN OPC SERVER - HDA (archived results, not live status). Swap the endpoint for UNICORN's real-time server once located. UNICORN requires a secured endpoint and a client cert it already trusts; the application URI is read from the cert. User/password come from the env vars.",
+    "endpoint": "opc.tcp://opcsrv:60434/OPC/HistoricalAccessServer",
+    "username_env": "AKTA_OPCUA_USER",
     "password_env": "AKTA_OPCUA_PASSWORD",
-    "security_string": null,
-    "timeout_s": 4
+    "security": {
+      "policy": "Basic256Sha256",
+      "mode": "SignAndEncrypt",
+      "cert": "C:/Users/cdallarosa/OneDrive - SystImmune, Inc/Documents/Certs/uaexpert.der",
+      "key": "C:/Users/cdallarosa/OneDrive - SystImmune, Inc/Documents/Certs/uaexpert_key.pem",
+      "server_cert": null
+    },
+    "timeout_s": 10
   },
 
   "labjack": {

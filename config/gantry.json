@@ -1,43 +1,85 @@
 {
-  "_comment": "Units are mm, mm/s and Nm. Coordinates are corner-origin: each axis is 0 at its homed end. Z=0 is the top and +Z moves the needle down. turns_per_mm and the serials are PLACEHOLDERS: set them for your machine before running with --hardware.",
-  "simulate": true,
+  "_comment": "Hardware: three ODrive Pro boards (v4.4, fw 0.6.11), one axis each (axis0): X=366133543432 (confirmed), Y=367333653432, Z=365733543432. Workspace 25 x 20 in (635 x 508 mm, X x Y). Units are mm, mm/s and Nm. Coordinates are corner-origin: each axis is 0 at its homed end. Z=0 is the top and +Z moves the needle down. X/Y: IAI IS-M-X-M-20-100 (lead 20 mm -> 0.05 turns/mm; strokes X 616, Y 467 mm); max_mm from Find limits; Z turns_per_mm / max_mm are still placeholders.",
+  "simulate": false,
   "axes": {
     "x": {
-      "serial": "365733543432", "axis_number": 0, "turns_per_mm": 0.1,
-      "min_mm": 0, "max_mm": 300, "speed_mm_s": 50, "accel_mm_s2": 100,
-      "homing_speed_mm_s": 10, "homing_direction": -1, "homing_backoff_mm": 2
+      "serial": "366133543432", "axis_number": 0, "turns_per_mm": 0.05,
+      "min_mm": 0, "max_mm": 583.4, "speed_mm_s": 80, "accel_mm_s2": 100,
+      "homing_speed_mm_s": 10, "homing_direction": 1, "homing_backoff_mm": 2,
+      "pos_gain": 20,
+      "vel_gain": 0.65,
+      "vel_integrator_gain": 0.25,
+      "enable_gain_scheduling": 1,
+      "gain_scheduling_width": 0.1,
+      "gain_scheduling_min_ratio": 0.2,
+      "decel_mm_s2": 60,
+      "max_speed_mm_s": 80,
+      "max_accel_mm_s2": 100,
+      "max_decel_mm_s2": 100
     },
     "y": {
-      "serial": "365733543432", "axis_number": 1, "turns_per_mm": 0.1,
-      "min_mm": 0, "max_mm": 300, "speed_mm_s": 50, "accel_mm_s2": 100,
-      "homing_speed_mm_s": 10, "homing_direction": -1, "homing_backoff_mm": 2
+      "serial": "367333653432", "axis_number": 0, "turns_per_mm": 0.05,
+      "min_mm": 0, "max_mm": 468.7, "speed_mm_s": 80, "accel_mm_s2": 100,
+      "homing_speed_mm_s": 10, "homing_direction": -1, "homing_backoff_mm": 2,
+      "decel_mm_s2": 60,
+      "max_speed_mm_s": 80,
+      "max_accel_mm_s2": 100,
+      "max_decel_mm_s2": 100
     },
     "z": {
-      "serial": "366133543432", "axis_number": 0, "turns_per_mm": 0.1,
-      "min_mm": 0, "max_mm": 150, "speed_mm_s": 30, "accel_mm_s2": 100,
-      "homing_speed_mm_s": 10, "homing_direction": 1, "homing_backoff_mm": 2
+      "_comment": "Z: IAI IS-S-Z-H-8-60-100 (60 W, lead 8 mm, stroke 100 mm). Motor: 5 pole pairs, encoder 1920 counts/rev (measured: 3058 counts = 12.7 mm). Motor + = DOWN, so homing_direction -1 (top stop). Still to do: torque constant (copied from X).",
+      "serial": "365733543432", "axis_number": 0, "turns_per_mm": 0.125, "encoder_cpr": 1920,
+      "min_mm": 0, "max_mm": 83.8, "speed_mm_s": 25, "accel_mm_s2": 300,
+      "homing_speed_mm_s": 10, "homing_direction": -1, "homing_backoff_mm": 2,
+      "pole_pairs": 5,
+      "pos_gain": 5,
+      "vel_gain": 0.05,
+      "vel_integrator_gain": 0.1,
+      "encoder_bandwidth": 1000,
+      "speed_to_home_mm_s": 40,
+      "decel_mm_s2": 300,
+      "max_speed_mm_s": 40
     }
   },
   "motor": {
+    "_comment": "write_motor_config false = keep the motor/encoder/DC-bus setup already on the ODrive (set it up and calibrate in the ODrive web GUI). true = write the values below on every connect.",
+    "write_motor_config": false,
     "motor_type": "PMSM_CURRENT_CONTROL",
     "pole_pairs": 4,
-    "torque_constant": 0.095,
+    "torque_constant": 0.09505747,
     "encoder_cpr": 3070,
     "current_soft_max": 30.0,
     "current_hard_max": 49.0,
-    "calibration_current": 10.0,
+    "calibration_current": 5.0,
     "torque_soft_limit": 2.0,
     "torque_hard_limit": 4.0,
-    "homing_torque_threshold": 1.5
+    "homing_torque_threshold": 1.5,
+    "resistance_calib_max_voltage": 24.0
+  },
+  "board": {
+    "_comment": "Mirrors the settings configured on the boards (ODrive GUI, read back with tools.odrive_backup). null = leave whatever is on the board. NOTE: dc_max_negative_current is -inf on the board with no brake resistor - regen goes into the 48 V supply; consider -1.",
+    "dc_bus_overvoltage_trip_level": 60.0,
+    "dc_bus_undervoltage_trip_level": 10.5,
+    "dc_max_positive_current": null,
+    "dc_max_negative_current": null,
+    "brake_resistor_enabled": null,
+    "brake_resistor_ohms": null,
+    "can_protocol": null
   },
   "z_safe_mm": 0,
   "home_order": ["z", "x", "y"],
+  "_homing_mode": "manual = jog (after Calibrate) or push the gantry to the home corner (X min, Y min = top-left, A1 side; Z top) and click Set home here. sensorless = Home drives into the hard stops.",
+  "homing_mode": "sensorless",
+  "_speed_percent": "Start-up speed setting for every move, % of each axis speed_mm_s (change it live in System Control).",
+  "speed_percent": 100,
   "position_tolerance_mm": 0.1,
+  "_arrive_tolerance_mm": "A move is done once within this of the target and stopped (bottles are wide).",
+  "arrive_tolerance_mm": 2.0,
   "move_timeout_s": 60,
   "homing_timeout_s": 120,
   "watchdog_timeout_s": 0.5,
   "simulation": {
-    "travel_mm": {"x": 320, "y": 320, "z": 160},
+    "travel_mm": {"x": 587, "y": 477, "z": 88},
     "speedup": 4
   }
 }

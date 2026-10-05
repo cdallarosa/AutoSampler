@@ -1,0 +1,562 @@
+{
+  "name": "Test: move between samples, 3 s at each (random order)",
+  "steps": [
+    {
+      "type": "home"
+    },
+    {
+      "type": "move_to_well",
+      "slot": "bottles",
+      "well": "D4",
+      "height": "safe"
+    },
+    {
+      "type": "dwell",
+      "seconds": 3
+    },
+    {
+      "type": "move_to_well",
+      "slot": "bottles",
+      "well": "C6",
+      "height": "safe"
+    },
+    {
+      "type": "dwell",
+      "seconds": 3
+    },
+    {
+      "type": "move_to_well",
+      "slot": "bottles",
+      "well": "F5",
+      "height": "safe"
+    },
+    {
+      "type": "dwell",
+      "seconds": 3
+    },
+    {
+      "type": "move_to_well",
+      "slot": "bottles",
+      "well": "B3",
+      "height": "safe"
+    },
+    {
+      "type": "dwell",
+      "seconds": 3
+    },
+    {
+      "type": "move_to_well",
+      "slot": "bottles",
+      "well": "B8",
+      "height": "safe"
+    },
+    {
+      "type": "dwell",
+      "seconds": 3
+    },
+    {
+      "type": "move_to_well",
+      "slot": "bottles",
+      "well": "C3",
+      "height": "safe"
+    },
+    {
+      "type": "dwell",
+      "seconds": 3
+    },
+    {
+      "type": "move_to_well",
+      "slot": "bottles",
+      "well": "F6",
+      "height": "safe"
+    },
+    {
+      "type": "dwell",
+      "seconds": 3
+    },
+    {
+      "type": "move_to_well",
+      "slot": "bottles",
+      "well": "F9",
+      "height": "safe"
+    },
+    {
+      "type": "dwell",
+      "seconds": 3
+    },
+    {
+      "type": "move_to_well",
+      "slot": "bottles",
+      "well": "D9",
+      "height": "safe"
+    },
+    {
+      "type": "dwell",
+      "seconds": 3
+    },
+    {
+      "type": "move_to_well",
+      "slot": "bottles",
+      "well": "C2",
+      "height": "safe"
+    },
+    {
+      "type": "dwell",
+      "seconds": 3
+    },
+    {
+      "type": "move_to_well",
+      "slot": "bottles",
+      "well": "B1",
+      "height": "safe"
+    },
+    {
+      "type": "dwell",
+      "seconds": 3
+    },
+    {
+      "type": "move_to_well",
+      "slot": "bottles",
+      "well": "D7",
+      "height": "safe"
+    },
+    {
+      "type": "dwell",
+      "seconds": 3
+    },
+    {
+      "type": "move_to_well",
+      "slot": "bottles",
+      "well": "E6",
+      "height": "safe"
+    },
+    {
+      "type": "dwell",
+      "seconds": 3
+    },
+    {
+      "type": "move_to_well",
+      "slot": "bottles",
+      "well": "E9",
+      "height": "safe"
+    },
+    {
+      "type": "dwell",
+      "seconds": 3
+    },
+    {
+      "type": "move_to_well",
+      "slot": "bottles",
+      "well": "D3",
+      "height": "safe"
+    },
+    {
+      "type": "dwell",
+      "seconds": 3
+    },
+    {
+      "type": "move_to_well",
+      "slot": "sample",
+      "well": "A1",
+      "height": "safe"
+    },
+    {
+      "type": "dwell",
+      "seconds": 3
+    },
+    {
+      "type": "move_to_well",
+      "slot": "bottles",
+      "well": "A4",
+      "height": "safe"
+    },
+    {
+      "type": "dwell",
+      "seconds": 3
+    },
+    {
+      "type": "move_to_well",
+      "slot": "bottles",
+      "well": "C4",
+      "height": "safe"
+    },
+    {
+      "type": "dwell",
+      "seconds": 3
+    },
+    {
+      "type": "move_to_well",
+      "slot": "bottles",
+      "well": "F2",
+      "height": "safe"
+    },
+    {
+      "type": "dwell",
+      "seconds": 3
+    },
+    {
+      "type": "move_to_well",
+      "slot": "bottles",
+      "well": "A5",
+      "height": "safe"
+    },
+    {
+      "type": "dwell",
+      "seconds": 3
+    },
+    {
+      "type": "move_to_well",
+      "slot": "bottles",
+      "well": "D2",
+      "height": "safe"
+    },
+    {
+      "type": "dwell",
+      "seconds": 3
+    },
+    {
+      "type": "move_to_well",
+      "slot": "bottles",
+      "well": "B2",
+      "height": "safe"
+    },
+    {
+      "type": "dwell",
+      "seconds": 3
+    },
+    {
+      "type": "move_to_well",
+      "slot": "bottles",
+      "well": "E7",
+      "height": "safe"
+    },
+    {
+      "type": "dwell",
+      "seconds": 3
+    },
+    {
+      "type": "move_to_well",
+      "slot": "bottles",
+      "well": "C5",
+      "height": "safe"
+    },
+    {
+      "type": "dwell",
+      "seconds": 3
+    },
+    {
+      "type": "move_to_well",
+      "slot": "bottles",
+      "well": "E3",
+      "height": "safe"
+    },
+    {
+      "type": "dwell",
+      "seconds": 3
+    },
+    {
+      "type": "move_to_well",
+      "slot": "bottles",
+      "well": "C7",
+      "height": "safe"
+    },
+    {
+      "type": "dwell",
+      "seconds": 3
+    },
+    {
+      "type": "move_to_well",
+      "slot": "bottles",
+      "well": "A1",
+      "height": "safe"
+    },
+    {
+      "type": "dwell",
+      "seconds": 3
+    },
+    {
+      "type": "move_to_well",
+      "slot": "bottles",
+      "well": "C8",
+      "height": "safe"
+    },
+    {
+      "type": "dwell",
+      "seconds": 3
+    },
+    {
+      "type": "move_to_well",
+      "slot": "bottles",
+      "well": "F7",
+      "height": "safe"
+    },
+    {
+      "type": "dwell",
+      "seconds": 3
+    },
+    {
+      "type": "move_to_well",
+      "slot": "bottles",
+      "well": "C1",
+      "height": "safe"
+    },
+    {
+      "type": "dwell",
+      "seconds": 3
+    },
+    {
+      "type": "move_to_well",
+      "slot": "bottles",
+      "well": "D5",
+      "height": "safe"
+    },
+    {
+      "type": "dwell",
+      "seconds": 3
+    },
+    {
+      "type": "move_to_well",
+      "slot": "bottles",
+      "well": "E1",
+      "height": "safe"
+    },
+    {
+      "type": "dwell",
+      "seconds": 3
+    },
+    {
+      "type": "move_to_well",
+      "slot": "bottles",
+      "well": "C9",
+      "height": "safe"
+    },
+    {
+      "type": "dwell",
+      "seconds": 3
+    },
+    {
+      "type": "move_to_well",
+      "slot": "bottles",
+      "well": "B4",
+      "height": "safe"
+    },
+    {
+      "type": "dwell",
+      "seconds": 3
+    },
+    {
+      "type": "move_to_well",
+      "slot": "bottles",
+      "well": "E4",
+      "height": "safe"
+    },
+    {
+      "type": "dwell",
+      "seconds": 3
+    },
+    {
+      "type": "move_to_well",
+      "slot": "bottles",
+      "well": "D6",
+      "height": "safe"
+    },
+    {
+      "type": "dwell",
+      "seconds": 3
+    },
+    {
+      "type": "move_to_well",
+      "slot": "bottles",
+      "well": "F4",
+      "height": "safe"
+    },
+    {
+      "type": "dwell",
+      "seconds": 3
+    },
+    {
+      "type": "move_to_well",
+      "slot": "bottles",
+      "well": "B5",
+      "height": "safe"
+    },
+    {
+      "type": "dwell",
+      "seconds": 3
+    },
+    {
+      "type": "move_to_well",
+      "slot": "bottles",
+      "well": "F1",
+      "height": "safe"
+    },
+    {
+      "type": "dwell",
+      "seconds": 3
+    },
+    {
+      "type": "move_to_well",
+      "slot": "bottles",
+      "well": "F8",
+      "height": "safe"
+    },
+    {
+      "type": "dwell",
+      "seconds": 3
+    },
+    {
+      "type": "move_to_well",
+      "slot": "bottles",
+      "well": "A3",
+      "height": "safe"
+    },
+    {
+      "type": "dwell",
+      "seconds": 3
+    },
+    {
+      "type": "move_to_well",
+      "slot": "bottles",
+      "well": "D1",
+      "height": "safe"
+    },
+    {
+      "type": "dwell",
+      "seconds": 3
+    },
+    {
+      "type": "move_to_well",
+      "slot": "bottles",
+      "well": "E2",
+      "height": "safe"
+    },
+    {
+      "type": "dwell",
+      "seconds": 3
+    },
+    {
+      "type": "move_to_well",
+      "slot": "bottles",
+      "well": "A6",
+      "height": "safe"
+    },
+    {
+      "type": "dwell",
+      "seconds": 3
+    },
+    {
+      "type": "move_to_well",
+      "slot": "bottles",
+      "well": "D8",
+      "height": "safe"
+    },
+    {
+      "type": "dwell",
+      "seconds": 3
+    },
+    {
+      "type": "move_to_well",
+      "slot": "bottles",
+      "well": "E8",
+      "height": "safe"
+    },
+    {
+      "type": "dwell",
+      "seconds": 3
+    },
+    {
+      "type": "move_to_well",
+      "slot": "bottles",
+      "well": "A7",
+      "height": "safe"
+    },
+    {
+      "type": "dwell",
+      "seconds": 3
+    },
+    {
+      "type": "move_to_well",
+      "slot": "bottles",
+      "well": "A9",
+      "height": "safe"
+    },
+    {
+      "type": "dwell",
+      "seconds": 3
+    },
+    {
+      "type": "move_to_well",
+      "slot": "bottles",
+      "well": "B6",
+      "height": "safe"
+    },
+    {
+      "type": "dwell",
+      "seconds": 3
+    },
+    {
+      "type": "move_to_well",
+      "slot": "bottles",
+      "well": "B7",
+      "height": "safe"
+    },
+    {
+      "type": "dwell",
+      "seconds": 3
+    },
+    {
+      "type": "move_to_well",
+      "slot": "bottles",
+      "well": "B9",
+      "height": "safe"
+    },
+    {
+      "type": "dwell",
+      "seconds": 3
+    },
+    {
+      "type": "move_to_well",
+      "slot": "bottles",
+      "well": "F3",
+      "height": "safe"
+    },
+    {
+      "type": "dwell",
+      "seconds": 3
+    },
+    {
+      "type": "move_to_well",
+      "slot": "bottles",
+      "well": "A2",
+      "height": "safe"
+    },
+    {
+      "type": "dwell",
+      "seconds": 3
+    },
+    {
+      "type": "move_to_well",
+      "slot": "bottles",
+      "well": "A8",
+      "height": "safe"
+    },
+    {
+      "type": "dwell",
+      "seconds": 3
+    },
+    {
+      "type": "move_to_well",
+      "slot": "bottles",
+      "well": "E5",
+      "height": "safe"
+    },
+    {
+      "type": "dwell",
+      "seconds": 3
+    },
+    {
+      "type": "move_to_position",
+      "name": "park"
+    }
+  ]
+}

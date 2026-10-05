@@ -1,0 +1,16 @@
+{
+  "_comment": "6 x 9 grid of 2.5 in (63.5 mm) bottles on a 2.75 in (69.85 mm) pitch = 0.25 in between bottles. Rows A-F run along Y, columns 1-9 along X. A1 is at the slot origin. Z heights are gantry Z (+down) and are placeholders: teach them on the machine.",
+  "name": "2.5 in bottles (6 x 9)",
+  "rows": 6,
+  "cols": 9,
+  "pitch_x_mm": 69.85,
+  "pitch_y_mm": 69.85,
+  "a1_offset_mm": [
+    0.0,
+    0.0
+  ],
+  "z_top_mm": 30.0,
+  "z_sample_mm": 75.0,
+  "well_diameter_mm": 63.5,
+  "height_mm": 101.6
+}

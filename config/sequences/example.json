@@ -1,15 +1,15 @@
 {
-  "name": "Example: 3 vials with wash",
+  "name": "Example: 3 bottles",
   "steps": [
-    {"type": "home"},
+    {
+      "type": "home"
+    },
     {
       "type": "samples",
-      "slot": "rack1",
+      "slot": "bottles",
       "wells": "A1-A3",
       "depth": "sample",
       "dwell_s": 5,
-      "pause_in_sample": false,
-      "wash": {"position": "wash", "dwell_s": 2},
       "end_position": "park"
     }
   ]

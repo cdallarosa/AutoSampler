@@ -21,7 +21,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from threading import Event, Lock, Thread
-from typing import Callable, List, Optional, Tuple
+from typing import Callable, Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -89,6 +89,8 @@ class AxisConfig:
     position_min: Optional[float] = None
     position_max: Optional[float] = None
     position_tolerance: float = 0.01  # turns
+    arrive_tolerance: float = 0.01  # turns: a move is done within this of the target once stopped
+    arrive_speed: float = 0.05  # turns/s: 'stopped' for the arrival check
 
     motion_profile: MotionProfile = field(default_factory=MotionProfile)
 
@@ -101,6 +103,7 @@ class AxisConfig:
     move_timeout: float = 30.0  # seconds
     homing_timeout: float = 60.0  # seconds
     watchdog_timeout: float = 0.5  # seconds
+    loop_settings: Dict[str, float] = field(default_factory=dict)  # ODrive path (from axisN) -> value
 
 
 @dataclass
@@ -133,9 +136,17 @@ class BaseAxis:
         self._monitoring_thread: Optional[Thread] = None
         self._stop_monitoring = Event()
         self._move_start_time: Optional[float] = None
+        self._move_timeout: float = config.move_timeout
 
-        # Motor turns = _offset + _sign * coordinate. Identity until homed.
-        self._sign = 1
+        self._prepared = False  # start-up calibration done since connect (see prepare())
+        # Simulation keeps loop gains here (ODrive axes read/write the board)
+        self._sim_tuning: Dict[str, float] = {"pos_gain": 20.0, "vel_gain": 1 / 6, "vel_integrator_gain": 1 / 3,
+                                             "encoder_bandwidth": 1000.0, "enable_gain_scheduling": 0.0,
+                                             "gain_scheduling_width": 0.001, "gain_scheduling_min_ratio": 0.0}
+
+        # Motor turns = _offset + _sign * coordinate. Before homing the offset is 0 but the sign already
+        # follows homing_direction, so a + jog moves away from the home end before and after homing.
+        self._sign = -1 if config.homing_direction > 0 else 1
         self._offset = 0.0
 
         self.logger = logging.getLogger(f"{type(self).__module__}.{config.axis_type.value}")
@@ -172,9 +183,13 @@ class BaseAxis:
             self.logger.info(f"Connected to {self.config.axis_type.value} axis")
             return True
         except Exception as e:
-            self.logger.error(f"Connection failed: {e}")
+            msg = str(e) or type(e).__name__
+            if isinstance(e, TimeoutError):
+                msg = (f"no answer within {timeout:.0f} s - check USB + power, close the ODrive web GUI / "
+                       f"odrivetool, and the serial in config/gantry.json")
+            self.logger.error(f"Connection failed: {msg}")
             self.status.state = AxisState.DISCONNECTED
-            self.status.errors.append(str(e))
+            self.status.errors.append(msg)
             return False
 
     def disconnect(self):
@@ -189,7 +204,155 @@ class BaseAxis:
             self.logger.error(f"Error during disconnect: {e}")
         self.status.state = AxisState.DISCONNECTED
         self.status.is_homed = False
+        self._prepared = False
         self.logger.info("Disconnected")
+
+    # ------------------------------------------------------------------
+    # Start-up calibration
+    # ------------------------------------------------------------------
+
+    @property
+    def is_prepared(self) -> bool:
+        return self._prepared
+
+    def prepare(self, e_stop: EStop = None) -> bool:
+        """
+        Start-up calibration the hardware needs before closed-loop control
+        (e.g. the ODrive encoder offset after power-up). Nothing for the simulator.
+        """
+        self._prepared = True
+        return True
+
+    def calibration_status(self) -> dict:
+        return {"connected": self.is_connected, "simulated": True, "motor": True, "encoder_offset": True,
+                "resistance": None, "inductance": None, "prepared": self._prepared}
+
+    def run_calibration(self, kind: str, e_stop: EStop = None, timeout: float = 60.0) -> bool:
+        """Simulated calibration: a short pause, always succeeds."""
+        if kind not in ("motor", "encoder_offset", "full"):
+            raise ValueError("kind must be motor, encoder_offset or full")
+        self.status.state = AxisState.CALIBRATING
+        time.sleep(0.8)
+        if kind != "motor":
+            self._prepared = True
+        self.status.state = AxisState.IDLE
+        self.logger.info(f"{kind.replace('_', ' ')} calibration complete (simulated)")
+        return True
+
+    def save_to_board(self) -> bool:
+        return True
+
+    def motion_blocker(self) -> Optional[str]:
+        """Why this axis can't be commanded to move right now (None = it can)."""
+        return None
+
+    def set_home_here(self) -> bool:
+        """Manual homing: make the current position coordinate 0 (positive = away from the home end)."""
+        if not self.is_connected:
+            self.logger.error("Not connected")
+            return False
+        if self.is_faulted:
+            self.logger.error(f"Axis faulted ({self.status.state.value}); reset first")
+            return False
+        if self.status.state in (AxisState.MOVING, AxisState.HOMING):
+            self.logger.error("Axis is moving")
+            return False
+        motor = self._hw_read()[0]
+        with self._lock:
+            self._sign = -1 if self.config.homing_direction > 0 else 1
+            self._offset = motor
+            self.status.position = 0.0
+            self.status.target_position = None
+            self.status.is_homed = True
+        self.logger.info(f"Home set here (motor {motor:.3f} turns = 0)")
+        return True
+
+    def read_tuning(self) -> Dict[str, float]:
+        """Control loop gains in use (keys as AxisSettings: pos_gain, vel_gain, ...)."""
+        return dict(self._sim_tuning)
+
+    def apply_tuning(self, values: Dict[str, float]) -> None:
+        """Write loop gains to the controller now (RAM; gantry.json keeps them across connects)."""
+        self._sim_tuning.update(values)
+
+    def step_response(self, step: float, e_stop: EStop = None, hold_s: float = 0.4,
+                      settle_s: float = 1.0, velocity: Optional[Tuple[float, float]] = None,
+                      accel: Optional[float] = None, decel: Optional[float] = None) -> dict:
+        """
+        Tuning test: hold, move ``step`` turns, move back, sampling position and speed as fast as possible.
+        ``velocity`` = (out, back) turns/s and ``accel`` / ``decel`` turns/s^2 are the move's real settings
+        (default: the profile). On overspeed (1.5 x the commanded speed + 0.5 turns/s) or disarm the axis is
+        switched off (IDLE); STOP holds it as usual.
+        Returns {"t", "pos", "vel", "marks", "start", "step", "aborted"} in seconds / motor turns.
+        """
+        out = {"t": [], "pos": [], "vel": [], "marks": [], "start": None, "step": step, "aborted": None}
+        if not self.is_connected or self.is_faulted:
+            out["aborted"] = "axis not connected or faulted"
+            return out
+        blocker = self.motion_blocker()
+        if blocker:
+            out["aborted"] = blocker
+            return out
+        v_out, v_back = velocity or (self.config.motion_profile.velocity_limit,) * 2
+        abort_vel = 1.5 * max(v_out, v_back) + 0.5
+        self.status.state = AxisState.HOMING  # busy: keeps the monitor's move checks out of the way
+        self.status.target_position = None
+        try:
+            if not self._hw_enter_closed_loop():
+                out["aborted"] = "could not enter closed loop"
+                return out
+            start = self._hw_read()[0]
+            out["start"] = start
+            t0 = time.time()
+            for target, dur, vel in ((start, hold_s, v_out), (start + step, settle_s, v_out), (start, settle_s, v_back)):
+                self._hw_set_target(target, vel, accel, decel)
+                out["marks"].append(time.time() - t0)
+                end = time.time() + dur
+                while time.time() < end:
+                    p, v, _ = self._hw_read()
+                    out["t"].append(time.time() - t0)
+                    out["pos"].append(p)
+                    out["vel"].append(v)
+                    if abs(v) > abort_vel:
+                        out["aborted"] = f"overspeed {v:+.2f} turns/s (limit {abort_vel:.2f})"
+                    elif not self._hw_armed():
+                        out["aborted"] = "the drive disarmed - " + self._hw_disarm_text()
+                    elif e_stop and e_stop():
+                        out["aborted"] = "stopped"
+                    if out["aborted"]:
+                        # Unstable gains: don't keep holding with them - de-energise this axis
+                        if out["aborted"] == "stopped":
+                            self._hw_hold()
+                        else:
+                            self._hw_idle()
+                        self.logger.warning(f"Step test aborted: {out['aborted']}")
+                        return out
+                    time.sleep(0.001)
+            return out
+        except Exception as e:
+            self._hw_hold()
+            out["aborted"] = f"step test failed: {e}"
+            return out
+        finally:
+            with self._lock:
+                self.status.position = self._from_motor(self._hw_read()[0])
+                if self.status.state == AxisState.HOMING:
+                    self.status.state = AxisState.IDLE
+
+    def read_motion(self) -> Dict[str, float]:
+        """Speed / ramp limits in use (turns/s, turns/s^2). Simulation: the profile."""
+        p = self.config.motion_profile
+        return {"vel_limit": p.velocity_limit, "accel_limit": p.acceleration_limit, "decel_limit": p.deceleration_limit}
+
+    def _hw_armed(self) -> bool:
+        """Closed loop control still active (the drive did not disarm itself)."""
+        return True
+
+    def _hw_disarm_text(self) -> str:
+        return ""
+
+    def apply_motion_config(self) -> None:
+        """Push changed speed/accel limits (self.config) to the hardware. Nothing to do in simulation."""
 
     # ------------------------------------------------------------------
     # Homing
@@ -248,6 +411,48 @@ class BaseAxis:
         except Exception as e:
             self._hw_hold()
             return self._fail(f"Homing failed: {e}")
+
+    def find_travel(self, e_stop: EStop = None) -> Optional[float]:
+        """
+        Find both hard stops by stalling into them (torque / stall, like homing):
+        home-end stop first (-> coordinate 0 after the back-off), then the far stop.
+        Backs off the far stop and returns the usable travel in turns (far stop
+        minus the back-off, as a coordinate), or None on failure/e-stop.
+        """
+        if not self.home(e_stop):
+            return None
+        cfg = self.config
+        home_stop = self._offset - self._sign * cfg.homing_backoff_turns
+        self.status.state = AxisState.HOMING
+        try:
+            far = self._find_end_stop(-cfg.homing_direction * abs(cfg.homing_velocity), e_stop)
+            self._hw_position_mode()
+            if far is None:
+                self._fail("Far end stop not found (timeout or e-stop)")
+                return None
+            usable = self._from_motor(far) - cfg.homing_backoff_turns
+            target = self._to_motor(usable)
+            self._hw_set_target(target, abs(cfg.homing_velocity))
+            deadline = time.time() + 10.0
+            while abs(self._hw_read()[0] - target) > cfg.position_tolerance:
+                if e_stop and e_stop():
+                    self._hw_hold()
+                    self._fail("E-stop while backing off the far end")
+                    return None
+                if time.time() > deadline:
+                    self._fail("Timeout backing off the far end stop")
+                    return None
+                time.sleep(self.MONITOR_PERIOD)
+            with self._lock:
+                self.status.position = self._from_motor(self._hw_read()[0])
+                self.status.state = AxisState.IDLE
+            self.logger.info(f"Travel: home-end stop {home_stop:.3f} turns, far stop {far:.3f} turns -> "
+                             f"usable 0..{usable:.3f} turns")
+            return usable
+        except Exception as e:
+            self._hw_hold()
+            self._fail(f"Finding the far end failed: {e}")
+            return None
 
     def _find_end_stop(self, velocity: float, e_stop: EStop) -> Optional[float]:
         """
@@ -314,13 +519,23 @@ class BaseAxis:
             return f"{self.config.axis_type.value} target {position:.3f} above maximum {hi:.3f}"
         return None
 
-    def move_to_position(self, position: float, velocity: Optional[float] = None) -> bool:
-        """Start a move to ``position`` (turns). Returns True if the command was accepted."""
+    def move_to_position(self, position: float, velocity: Optional[float] = None,
+                         accel: Optional[float] = None, decel: Optional[float] = None) -> bool:
+        """
+        Start a move to ``position`` (turns). ``velocity`` / ``accel`` / ``decel`` (turns/s,
+        turns/s^2) override the profile for this move, capped at the profile
+        limits; coordinated moves use them to scale each axis. Returns True if
+        the command was accepted.
+        """
         if not self.is_connected:
             self.logger.error("Not connected")
             return False
         if self.is_faulted:
             self.logger.error(f"Axis faulted ({self.status.state.value}); reset first")
+            return False
+        blocker = self.motion_blocker()
+        if blocker:
+            self.logger.error(blocker)
             return False
         if not self.status.is_homed:
             self.logger.warning("Axis not homed - position is relative to power-on")
@@ -331,16 +546,20 @@ class BaseAxis:
             return False
 
         try:
-            vel = self.config.motion_profile.velocity_limit
-            if velocity is not None:
-                vel = min(abs(velocity), vel)
+            profile = self.config.motion_profile
+            vel = profile.velocity_limit if velocity is None else min(abs(velocity), profile.velocity_limit)
+            acc = None if accel is None else min(abs(accel), profile.acceleration_limit)
+            dec = None if decel is None else min(abs(decel), profile.deceleration_limit)
             if not self._hw_enter_closed_loop():
                 return self._fail("Failed to enter closed loop control")
             with self._lock:
                 self.status.target_position = position
                 self.status.state = AxisState.MOVING
                 self._move_start_time = time.time()
-                self._hw_set_target(self._to_motor(position), vel)
+                # Trapezoid estimate (distance / speed + one accel ramp), doubled: slow moves get time
+                est = abs(position - self.status.position) / max(vel, 1e-9) + vel / max(acc or profile.acceleration_limit, 1e-9)
+                self._move_timeout = max(self.config.move_timeout, 2 * est + 5)
+                self._hw_set_target(self._to_motor(position), vel, acc, dec)
             self.logger.debug(f"Moving to {position:.3f} turns at {vel:.3f} turns/s")
             return True
         except Exception as e:
@@ -367,15 +586,17 @@ class BaseAxis:
                 self.status.target_position = None
                 if not self.is_faulted:
                     self.status.state = AxisState.IDLE
-            self.logger.info("Emergency stop" if emergency else "Motion stopped")
+            self.logger.debug("Emergency stop" if emergency else "Motion stopped")
         except Exception as e:
             self.logger.error(f"Stop command failed: {e}")
 
     def is_at_position(self, tolerance: Optional[float] = None) -> bool:
+        """Arrived: within the arrival tolerance of the target and (practically) stopped."""
         if self.status.target_position is None:
             return False
-        tol = self.config.position_tolerance if tolerance is None else tolerance
-        return abs(self.status.position - self.status.target_position) <= tol
+        tol = self.config.arrive_tolerance if tolerance is None else tolerance
+        close = abs(self.status.position - self.status.target_position) <= tol
+        return close and abs(self.status.velocity) <= self.config.arrive_speed
 
     def reset(self):
         """Clear errors and faults and return to IDLE (keeps homing)."""
@@ -433,7 +654,7 @@ class BaseAxis:
                     self.logger.warning(st.errors[-1])
                 elif self.is_at_position():
                     st.state = AxisState.COMPLETED
-                elif self._move_start_time and time.time() - self._move_start_time > cfg.move_timeout:
+                elif self._move_start_time and time.time() - self._move_start_time > self._move_timeout:
                     self._hw_hold()
                     st.state = AxisState.ERROR
                     st.errors.append("Move timeout")
@@ -465,8 +686,9 @@ class BaseAxis:
     def _hw_enter_closed_loop(self) -> bool:
         raise NotImplementedError
 
-    def _hw_set_target(self, motor_pos: float, velocity: float) -> None:
-        """Trapezoidal position move to ``motor_pos`` at ``velocity`` turns/s."""
+    def _hw_set_target(self, motor_pos: float, velocity: float, accel: Optional[float] = None,
+                       decel: Optional[float] = None) -> None:
+        """Trapezoidal move to ``motor_pos`` at ``velocity`` turns/s (``accel`` turns/s^2, None = profile)."""
         raise NotImplementedError
 
     def _hw_velocity_mode(self, velocity: float) -> None:

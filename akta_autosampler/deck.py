@@ -46,6 +46,7 @@ class Labware:
     z_top_mm: float
     z_sample_mm: float
     well_diameter_mm: Optional[float] = None
+    height_mm: Optional[float] = None  # vessel height, for the 3D view
 
     @classmethod
     def load(cls, path: Path) -> "Labware":
@@ -59,10 +60,11 @@ class Labware:
         """'B3' -> (row 1, col 2). Raises ValueError if not on this labware."""
         m = _WELL_RE.match(well.strip())
         if not m:
-            raise ValueError(f"Invalid well name '{well}'")
+            raise ValueError(f"'{well}' is not a bottle position (use e.g. A1)")
         row, col = _row_index(m.group(1)), int(m.group(2)) - 1
         if not (0 <= row < self.rows and 0 <= col < self.cols):
-            raise ValueError(f"Well '{well}' not on {self.name} ({self.rows}x{self.cols})")
+            last = self.well_name(self.rows - 1, self.cols - 1)
+            raise ValueError(f"Bottle '{well}' doesn't exist (valid: A1-{last})")
         return row, col
 
     def well_name(self, row: int, col: int) -> str:
@@ -113,6 +115,7 @@ class Deck:
     slots: Dict[str, Slot] = field(default_factory=dict)
     positions: Dict[str, Tuple[float, float, float]] = field(default_factory=dict)
     path: Optional[Path] = None
+    visual: Dict[str, float] = field(default_factory=dict)  # e.g. tip_home_height_mm
 
     @classmethod
     def load(cls, config_dir: Path = CONFIG_DIR) -> "Deck":
@@ -127,7 +130,7 @@ class Deck:
                 labware_cache[lw_id] = Labware.load(config_dir / "labware" / f"{lw_id}.json")
             slots[name] = Slot(name, tuple(s["origin_mm"]), labware_cache[lw_id], s.get("z_offset_mm", 0.0))
         positions = {k: tuple(v) for k, v in data.get("positions", {}).items()}
-        return cls(slots, positions, path)
+        return cls(slots, positions, path, data.get("visual", {}))
 
     def save(self, path: Optional[Path] = None):
         path = path or self.path
@@ -138,6 +141,7 @@ class Deck:
                 for s in self.slots.values()
             },
             "positions": {k: list(v) for k, v in self.positions.items()},
+            **({"visual": self.visual} if self.visual else {}),
         }
         with open(path, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2)

@@ -10,6 +10,11 @@ def config():
     cfg = load_gantry_config(CONFIG_DIR / "gantry.json")
     cfg.simulate = True
     cfg.simulation.speedup = 40
+    cfg.homing_mode = "sensorless"  # tests exercise the hard-stop homing; manual homing has its own tests
+    cfg.axes["x"].homing_direction = -1  # the simulator tests assume X homes at its low motor end
+    cfg.axes["z"].homing_direction = 1   # ... and Z at its high motor end
+    cfg.speed_percent = 100
+    cfg.arrive_tolerance_mm = 0.1  # the simulator tests check end positions closely (2 mm rule has its own test)
     return cfg
 
 
